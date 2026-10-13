@@ -1,0 +1,2 @@
+  // sc.exe create Printmine binPath=C:\printit\PrintIt.ServiceHost.exe start=auto 
+  // sc start Printmine

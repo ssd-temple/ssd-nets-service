@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SSD Kiosk Console — Style Preview</title>
+    <link rel="icon" type="image/png" href="assets/SSD-Logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --dawn-a: #FDF3D8;
+            --dawn-b: #F6E3AB;
+            --dawn-c: #FBE0C7;
+            --ground: #FBF6EA;
+            --glass: rgba(255, 253, 246, 0.62);
+            --glass-strong: rgba(255, 253, 246, 0.85);
+            --hairline: rgba(179, 39, 63, 0.16);
+            --hairline-strong: rgba(179, 39, 63, 0.32);
+            --petal: #B3273F;
+            --petal-soft: #D65A6E;
+            --gold-leaf: #D4AF37;
+            --gold-leaf-bright: #E8BF5C;
+            --ink: #150F08;
+            --ink-dim: #5C4D33;
+            --ink-faint: #7D6C4D;
+            --good: #3FA67A;
+            --bad: #B3273F;
+            --shadow: rgba(122, 83, 19, 0.16);
+            --font-display: 'Cinzel', 'Trajan Pro', Cambria, Georgia, serif;
+            --font-body: 'Poppins', 'Segoe UI', system-ui, -apple-system, sans-serif;
+            --font-data: 'Cascadia Code', 'Consolas', 'SFMono-Regular', 'Courier New', monospace;
+        }
+
+        :root[data-theme="dark"] {
+            --dawn-a: #241110; --dawn-b: #2E1414; --dawn-c: #1F1409; --ground: #17110A;
+            --glass: rgba(45, 30, 24, 0.55); --glass-strong: rgba(53, 36, 28, 0.82);
+            --hairline: rgba(232, 191, 92, 0.18); --hairline-strong: rgba(232, 191, 92, 0.34);
+            --petal: #E0546B; --petal-soft: #B3273F;
+            --gold-leaf: #E8BF5C; --gold-leaf-bright: #F3D68C;
+            --ink: #F5EDE0; --ink-dim: #C7B49C; --ink-faint: #8C7B63;
+            --shadow: rgba(6, 3, 2, 0.5);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-theme="light"]) {
+                --dawn-a: #241110; --dawn-b: #2E1414; --dawn-c: #1F1409; --ground: #17110A;
+                --glass: rgba(45, 30, 24, 0.55); --glass-strong: rgba(53, 36, 28, 0.82);
+                --hairline: rgba(232, 191, 92, 0.18); --hairline-strong: rgba(232, 191, 92, 0.34);
+                --petal: #E0546B; --petal-soft: #B3273F;
+                --gold-leaf: #E8BF5C; --gold-leaf-bright: #F3D68C;
+                --ink: #F5EDE0; --ink-dim: #C7B49C; --ink-faint: #8C7B63;
+                --shadow: rgba(6, 3, 2, 0.5);
+            }
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            color: var(--ink);
+            font-family: var(--font-body);
+            -webkit-font-smoothing: antialiased;
+            overflow-x: hidden;
+            background: var(--ground);
+        }
+
+        .app-shell {
+            position: relative;
+            min-height: 100vh;
+            background:
+                radial-gradient(ellipse 60% 45% at 20% 0%, var(--dawn-a), transparent 60%),
+                radial-gradient(ellipse 55% 45% at 85% 10%, var(--dawn-b), transparent 55%),
+                radial-gradient(ellipse 70% 50% at 50% 100%, var(--dawn-c), transparent 60%),
+                var(--ground);
+        }
+
+        .grain {
+            position: fixed; inset: 0; pointer-events: none; z-index: 0;
+            background-image: radial-gradient(circle, var(--hairline) 1px, transparent 1px);
+            background-size: 30px 30px;
+            opacity: 0.35;
+        }
+
+        .preview-ribbon {
+            position: fixed; top: 14px; right: -46px; z-index: 600;
+            transform: rotate(40deg);
+            background: linear-gradient(135deg, var(--petal), var(--gold-leaf-bright));
+            color: #FFF9F0;
+            font-family: var(--font-data);
+            font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+            padding: 5px 52px;
+            box-shadow: 0 6px 16px var(--shadow);
+            pointer-events: none;
+        }
+
+        .console {
+            position: relative; z-index: 1;
+            width: min(1320px, calc(100% - 64px));
+            margin: 0 auto;
+            padding: 48px 0 90px;
+            display: flex; flex-direction: column; gap: 24px;
+        }
+
+        .brand-topbar { display: flex; justify-content: center; padding: 6px 0 4px; }
+        .brand-topbar-card {
+            display: inline-flex; align-items: center; justify-content: center;
+            padding: 14px 30px;
+            border-radius: 24px;
+        }
+        :root[data-theme="dark"] .brand-topbar-card {
+            background: radial-gradient(ellipse 85% 100% at 50% 50%, rgba(245, 237, 224, 0.9), rgba(245, 237, 224, 0) 72%);
+        }
+        @media (prefers-color-scheme: dark) {
+            :root:not([data-theme="light"]) .brand-topbar-card {
+                background: radial-gradient(ellipse 85% 100% at 50% 50%, rgba(245, 237, 224, 0.9), rgba(245, 237, 224, 0) 72%);
+            }
+        }
+        .brand-topbar-logo {
+            height: clamp(90px, 11vw, 140px); width: auto; object-fit: contain; display: block;
+            filter:
+                drop-shadow(0 0 14px rgba(212, 175, 55, 0.65))
+                drop-shadow(0 0 36px rgba(212, 175, 55, 0.4))
+                drop-shadow(0 0 64px rgba(212, 175, 55, 0.22));
+            animation: topbarLogoGlow 4.5s ease-in-out infinite;
+        }
+        @keyframes topbarLogoGlow {
+            0%, 100% {
+                filter:
+                    drop-shadow(0 0 14px rgba(212, 175, 55, 0.65))
+                    drop-shadow(0 0 36px rgba(212, 175, 55, 0.4))
+                    drop-shadow(0 0 64px rgba(212, 175, 55, 0.22));
+            }
+            50% {
+                filter:
+                    drop-shadow(0 0 20px rgba(232, 191, 92, 0.8))
+                    drop-shadow(0 0 48px rgba(232, 191, 92, 0.5))
+                    drop-shadow(0 0 84px rgba(212, 175, 55, 0.3));
+            }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .brand-topbar-logo { animation: none; }
+        }
+
+        .panel {
+            position: relative;
+            background: var(--glass);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid var(--hairline);
+            border-radius: 26px 8px 26px 8px;
+            box-shadow: 0 18px 40px var(--shadow);
+        }
+
+        .panel-head { display: flex; align-items: center; gap: 10px; padding: 20px 26px 0; }
+        .panel-glyph { width: 19px; height: 19px; color: var(--petal); flex-shrink: 0; }
+        .panel-title { font-family: var(--font-display); font-size: 15px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink); margin: 0; }
+        .panel-body { padding: 16px 26px 26px; }
+
+        .hero-panel {
+            padding: 30px 32px 26px; border-radius: 32px 10px 32px 10px;
+            box-shadow: 0 18px 40px var(--shadow), 0 0 0 1px var(--hairline), 0 0 30px 0 rgba(212, 175, 55, 0.18);
+        }
+        .hero { display: flex; justify-content: space-between; align-items: flex-start; gap: 22px; flex-wrap: wrap; margin: 0; }
+        .hero-brand { display: flex; align-items: center; gap: 18px; min-width: 0; }
+
+        .brand-logo {
+            width: 80px; height: 80px; border-radius: 50%;
+            background: var(--glass-strong);
+            box-shadow: 0 0 0 1px var(--hairline-strong), 0 10px 26px var(--shadow);
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden;
+        }
+        .brand-logo img { width: 66%; height: 66%; object-fit: contain; }
+
+        .hero-text h1 {
+            font-family: var(--font-display); font-size: 24px; font-weight: 600; letter-spacing: 0.04em;
+            margin: 0 0 6px; color: var(--ink);
+        }
+        .subtitle { margin: 0; color: var(--ink-dim); font-size: 13.5px; text-align: left; }
+
+        .version-badge {
+            display: inline-flex; align-items: center; gap: 7px;
+            margin-top: 10px; padding: 6px 16px; border-radius: 20px;
+            font-family: var(--font-data); font-size: 14px; font-weight: 600; letter-spacing: 0.04em;
+            color: #FFF9F0;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+            background: linear-gradient(135deg, #7A1E2E, #7A5313);
+            box-shadow: 0 0 14px 0 var(--hairline-strong);
+        }
+        .version-badge::before {
+            content: "";
+            width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+            background: #FBBF24;
+            box-shadow: 0 0 6px 1px rgba(251, 191, 36, 0.75);
+        }
+
+        .hero-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+        button { font-family: inherit; }
+
+        .btn-secondary, .btn-primary, .btn-terminal {
+            position: relative;
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 10px 18px;
+            font-size: 11.5px; font-weight: 600; letter-spacing: 0.09em; text-transform: uppercase;
+            color: var(--ink);
+            background: var(--glass-strong);
+            border: 1px solid var(--hairline-strong);
+            border-radius: 999px;
+            cursor: default;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #8A2D3C, #7A5313);
+            color: #FFF9F0;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+            border-color: transparent;
+        }
+
+        .btn-version { min-width: 200px; justify-content: center; }
+
+        .version-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin: 0; }
+        .version-card .timestamp { font-size: 13px; font-weight: 500; }
+        .version-card {
+            padding: 16px 18px;
+            background: var(--glass);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--hairline);
+            border-radius: 20px 6px 20px 6px;
+        }
+        .version-card h3 { font-family: var(--font-data); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--petal); margin: 0 0 8px; font-weight: 600; }
+        .version-card p { font-size: 17px; font-weight: 600; color: var(--ink); font-family: var(--font-display); margin: 0; }
+
+        .status-container {
+            display: flex; gap: 20px; flex-wrap: wrap;
+            padding: 13px 22px;
+            background: var(--glass);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--hairline);
+            border-radius: 999px;
+            font-size: 12.5px;
+            margin: 0;
+        }
+        .status-item { display: flex; align-items: center; gap: 9px; color: var(--ink-dim); }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-faint); }
+        .status-dot.online { background: var(--good); box-shadow: 0 0 0 3px rgba(63, 166, 122, 0.18); }
+
+        .field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 18px; }
+        .form-group { display: flex; flex-direction: column; gap: 7px; }
+        label { font-size: 11.5px; font-weight: 600; letter-spacing: 0.02em; color: var(--ink-dim); }
+
+        input[type="text"], input[type="password"], input[type="number"], select {
+            font-family: var(--font-body); font-size: 14px; color: var(--ink);
+            background: var(--glass-strong);
+            border: 1px solid var(--hairline);
+            padding: 10px 14px; border-radius: 12px;
+            width: 100%;
+        }
+
+        .toggle-row { display: flex; align-items: center; justify-content: space-between; padding-top: 4px; }
+        .toggle-switch { position: relative; width: 42px; height: 23px; flex-shrink: 0; }
+        .toggle-slider { position: absolute; inset: 0; background: linear-gradient(135deg, var(--petal), var(--gold-leaf-bright)); border-radius: 20px; }
+        .toggle-slider::before {
+            content: ""; position: absolute; width: 17px; height: 17px; left: 22px; top: 3px;
+            background: #fff; border-radius: 50%;
+            box-shadow: 0 1px 3px var(--shadow);
+        }
+
+        .button-group { display: flex; justify-content: flex-end; gap: 10px; padding-top: 6px; }
+
+        .current-config {
+            display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px;
+        }
+        .current-config .stat-card {
+            padding: 14px 16px;
+            background: var(--glass);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--hairline);
+            border-radius: 18px 6px 18px 6px;
+        }
+        .current-config .stat-label { font-family: var(--font-data); font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--petal); margin-bottom: 6px; }
+        .current-config .stat-value { font-size: 14.5px; font-weight: 600; color: var(--ink); }
+
+        .terminal-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+
+        .terminal-response {
+            margin-top: 14px; padding: 13px 16px;
+            background: var(--glass-strong);
+            border: 1px solid var(--hairline);
+            border-radius: 14px;
+            font-family: var(--font-data); font-size: 12px; color: var(--good);
+            line-height: 1.6; white-space: pre-wrap; word-wrap: break-word;
+        }
+
+        .printer-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+        .printer-row {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 11px 16px;
+            background: var(--glass-strong);
+            border: 1px solid var(--hairline);
+            border-radius: 14px;
+            font-size: 13.5px;
+        }
+        .printer-row.selected { border-color: var(--petal-soft); }
+        .printer-row .printer-port { font-family: var(--font-data); color: var(--ink-faint); font-size: 12px; }
+        .printer-row .check { width: 16px; height: 16px; color: var(--petal); flex-shrink: 0; }
+        .printer-row:not(.selected) .check { visibility: hidden; }
+
+        .message { padding: 12px 18px; border-radius: 14px; font-size: 13.5px; }
+        .message.success { background: rgba(63, 166, 122, 0.12); color: var(--good); border: 1px solid rgba(63, 166, 122, 0.3); }
+
+        .footer-note { text-align: center; color: var(--ink-faint); font-size: 10.5px; letter-spacing: 0.18em; text-transform: uppercase; font-family: var(--font-display); margin: 4px 0 0; }
+
+        @media (max-width: 720px) {
+            .field-grid, .version-panel, .current-config { grid-template-columns: 1fr; }
+            .console { width: calc(100% - 36px); padding: 30px 0 70px; }
+            .preview-ribbon { right: -58px; top: 18px; }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="grain"></div>
+    <div class="preview-ribbon">Style Preview</div>
+
+    <div class="app-shell">
+        <div class="console">
+
+            <div class="brand-topbar">
+                <div class="brand-topbar-card">
+                    <img src="assets/SSD-Full-Logo-Transparent.png" alt="Sri Siva Durga Temple" class="brand-topbar-logo" />
+                </div>
+            </div>
+
+            <div class="hero panel hero-panel">
+                <div class="hero-brand">
+                    <div class="brand-logo">
+                        <img src="assets/SSD-Logo.png" alt="Sri Siva Durga Temple Logo" />
+                    </div>
+                    <div class="hero-text">
+                        <h1>NETS and Printer Service</h1>
+                        <p class="subtitle">Smart desktop configuration for your Sri Siva Durga Temple kiosk &amp; POS service</p>
+                        <span class="version-badge">SSD_EXE_1.0.7</span>
+                    </div>
+                </div>
+                <div class="hero-actions">
+                    <button type="button" class="btn-secondary btn-version">Force Refresh</button>
+                    <button type="button" class="btn-secondary btn-version">Hard Reload</button>
+                    <button type="button" class="btn-secondary btn-version">Check Installed Version</button>
+                    <button type="button" class="btn-secondary btn-version">Check Git Update</button>
+                    <button type="button" class="btn-primary btn-version">Install Available Update</button>
+                </div>
+            </div>
+
+            <div class="version-panel">
+                <div class="version-card">
+                    <h3>Installed Version</h3>
+                    <p>SSD_EXE_1.0.7</p>
+                </div>
+                <div class="version-card">
+                    <h3>Version Status</h3>
+                    <p>Ready</p>
+                </div>
+                <div class="version-card">
+                    <h3>Git Update</h3>
+                    <p>Up to date</p>
+                </div>
+                <div class="version-card">
+                    <h3>Last Checked</h3>
+                    <p class="timestamp">27 Aug 2026, 5:40 PM SGT</p>
+                </div>
+                <div class="version-card">
+                    <h3>Last Installed</h3>
+                    <p class="timestamp">19 Aug 2026, 9:12 AM SGT</p>
+                </div>
+            </div>
+
+            <!-- Service Configuration Section -->
+            <div class="panel">
+                <div class="panel-head">
+                    <svg class="panel-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2l2.6 5.3 5.8.9-4.2 4.1 1 5.8L12 15.9l-5.2 2.2 1-5.8L3.6 8.2l5.8-.9z"/></svg>
+                    <h2 class="panel-title">Service Configuration</h2>
+                </div>
+                <div class="panel-body" style="display:flex; flex-direction:column; gap:16px;">
+                    <div class="field-grid">
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label>Cloud URL</label>
+                            <input type="text" value="https://api.srisivadurgatemple.org/" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>COM Port</label>
+                            <select disabled><option>COM6</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Simulation Port</label>
+                            <select disabled><option>COM4</option></select>
+                        </div>
+                        <div class="form-group">
+                            <label>Temple</label>
+                            <input type="text" value="SSD" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label>Node ID</label>
+                            <input type="number" value="1" readonly>
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <div class="toggle-row">
+                                <label style="margin-bottom: 0; text-transform:none; font-size: 14px; color: var(--ink);">Simulation Mode</label>
+                                <div class="toggle-switch"><span class="toggle-slider"></span></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="button-group">
+                        <button type="button" class="btn-primary">Save Service Config</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Printer Configuration -->
+            <div class="panel">
+                <div class="panel-head">
+                    <svg class="panel-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                    <h2 class="panel-title">Printer Configuration</h2>
+                </div>
+                <div class="panel-body" style="display:flex; flex-direction:column; gap:16px;">
+                    <div class="current-config">
+                        <div class="stat-card">
+                            <div class="stat-label">Printer Name</div>
+                            <div class="stat-value">EPSON TM-T82X Receipt</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Printer Port</div>
+                            <div class="stat-value">TMUSB001</div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Select Printer</label>
+                        <ul class="printer-list">
+                            <li class="printer-row selected">
+                                <span>EPSON TM-T82X Receipt <span class="printer-port">TMUSB001</span></span>
+                                <svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                            </li>
+                            <li class="printer-row">
+                                <span>Brother DCP-L2535DW <span class="printer-port">USB003</span></span>
+                                <svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="button-group" style="justify-content: space-between;">
+                        <button type="button" class="btn-secondary">Refresh</button>
+                        <button type="button" class="btn-primary">Save Configuration</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Terminal Operations -->
+            <div class="panel">
+                <div class="panel-head">
+                    <svg class="panel-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M6 20h12M9 8h6M9 12h4"/></svg>
+                    <h2 class="panel-title">Terminal Operations</h2>
+                </div>
+                <div class="panel-body">
+                    <div class="status-container" style="margin-bottom: 14px;">
+                        <div class="status-item"><span class="status-dot online"></span> Terminal Connected</div>
+                        <div class="status-item"><span class="status-dot online"></span> Service Listening on :2003</div>
+                    </div>
+                    <div class="terminal-buttons">
+                        <button type="button" class="btn-terminal">Check Status</button>
+                        <button type="button" class="btn-terminal">Trigger Logon</button>
+                    </div>
+                    <div class="terminal-response">Status Check Response:
+{
+  "success": true,
+  "terminal": "connected",
+  "com": "COM6"
+}</div>
+                </div>
+            </div>
+
+            <div class="message success">Printer configuration saved successfully!</div>
+
+            <p class="footer-note">NETS and Printer Service · Sri Siva Durga Temple</p>
+        </div>
+    </div>
+</body>
+
+</html>

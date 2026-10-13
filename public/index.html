@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Printer Configuration</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 600px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+            text-align: center;
+        }
+
+        .subtitle {
+            color: #666;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .current-config {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin-bottom: 30px;
+            border-radius: 4px;
+        }
+
+        .current-config h3 {
+            color: #667eea;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+
+        .current-config p {
+            color: #555;
+            font-size: 14px;
+            margin: 5px 0;
+        }
+
+        .current-config strong {
+            color: #333;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 15px;
+            color: #333;
+            background-color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        select:hover {
+            border-color: #667eea;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .printer-option {
+            padding: 10px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 30px;
+        }
+
+        button {
+            flex: 1;
+            padding: 14px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #d0d0d0;
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .loading {
+            text-align: center;
+            color: #667eea;
+            padding: 20px;
+            font-size: 14px;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        .message {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-size: 14px;
+            text-align: center;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .printer-details {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 15px;
+            font-size: 13px;
+            color: #555;
+        }
+
+        .printer-details div {
+            margin: 5px 0;
+        }
+
+        .printer-details strong {
+            color: #333;
+        }
+
+        .terminal-section {
+            background: #f0f4ff;
+            border-left: 4px solid #4CAF50;
+            padding: 15px;
+            margin-bottom: 30px;
+            border-radius: 4px;
+        }
+
+        .terminal-section h3 {
+            color: #4CAF50;
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+
+        .terminal-buttons {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn-terminal {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-status {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+        }
+
+        .btn-status:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(76, 175, 80, 0.4);
+        }
+
+        .btn-logon {
+            background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+            color: white;
+        }
+
+        .btn-logon:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(33, 150, 243, 0.4);
+        }
+
+        .btn-terminal:active {
+            transform: translateY(0);
+        }
+
+        .btn-terminal:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .terminal-response {
+            margin-top: 15px;
+            padding: 12px;
+            background: #f5f5f5;
+            border-radius: 6px;
+            border-left: 3px solid #2196F3;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            color: #333;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+        }
+
+        .terminal-response.show {
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🖨️ Printer Configuration</h1>
+        <p class="subtitle">Select a printer to configure for the NETS service</p>
+
+        <div class="current-config" id="currentConfig">
+            <h3>Current Configuration</h3>
+            <p><strong>Printer Name:</strong> <span id="currentPrinterName">Loading...</span></p>
+            <p><strong>Printer Port:</strong> <span id="currentPrinterPort">Loading...</span></p>
+        </div>
+
+        <div class="terminal-section">
+            <h3>🔧 Terminal Operations</h3>
+            <div class="terminal-buttons">
+                <button type="button" class="btn-terminal btn-status" onclick="checkTerminalStatus()" id="statusBtn">📊
+                    Check Status</button>
+                <button type="button" class="btn-terminal btn-logon" onclick="triggerLogon()" id="logonBtn">🔐 Trigger
+                    Logon</button>
+            </div>
+            <div id="terminalResponse" class="terminal-response"></div>
+        </div>
+
+        <div id="loadingIndicator" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Loading printers...</p>
+        </div>
+
+        <div id="printerForm" style="display: none;">
+            <div class="form-group">
+                <label for="printerSelect">Select Printer</label>
+                <select id="printerSelect" size="8">
+                    <option value="">-- Select a printer --</option>
+                </select>
+            </div>
+
+            <div class="printer-details" id="printerDetails" style="display: none;">
+                <div><strong>Name:</strong> <span id="detailName"></span></div>
+                <div><strong>Port:</strong> <span id="detailPort"></span></div>
+                <div><strong>Driver:</strong> <span id="detailDriver"></span></div>
+            </div>
+
+            <div class="button-group">
+                <button type="button" class="btn-secondary" onclick="refreshPrinters()">🔄 Refresh</button>
+                <button type="button" class="btn-primary" onclick="savePrinter()" id="saveBtn" disabled>💾 Save
+                    Configuration</button>
+            </div>
+        </div>
+
+        <div id="messageContainer"></div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+        let printers = [];
+        let selectedPrinter = null;
+
+        // Load current configuration
+        async function loadCurrentConfig() {
+            try {
+                const response = await fetch(`${API_BASE}/api/config`);
+                const data = await response.json();
+
+                if (data.success) {
+                    document.getElementById('currentPrinterName').textContent = data.config.printerName || 'Not configured';
+                    document.getElementById('currentPrinterPort').textContent = data.config.printerPort || 'Not configured';
+                }
+            } catch (error) {
+                console.error('Failed to load current config:', error);
+                document.getElementById('currentPrinterName').textContent = 'Error loading';
+                document.getElementById('currentPrinterPort').textContent = 'Error loading';
+            }
+        }
+
+        // Load printers from API
+        async function loadPrinters() {
+            document.getElementById('loadingIndicator').style.display = 'block';
+            document.getElementById('printerForm').style.display = 'none';
+            clearMessage();
+
+            try {
+                const response = await fetch(`${API_BASE}/api/printers`);
+                const data = await response.json();
+
+                if (data.success && data.printers) {
+                    printers = data.printers;
+                    displayPrinters();
+                } else {
+                    showMessage('Failed to load printers', 'error');
+                }
+            } catch (error) {
+                showMessage(`Error: ${error.message}`, 'error');
+            } finally {
+                document.getElementById('loadingIndicator').style.display = 'none';
+                document.getElementById('printerForm').style.display = 'block';
+            }
+        }
+
+        // Display printers in select dropdown
+        function displayPrinters() {
+            const select = document.getElementById('printerSelect');
+            select.innerHTML = '<option value="">-- Select a printer --</option>';
+
+            printers.forEach((printer, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = `${printer.Name} (${printer.PortName})`;
+                select.appendChild(option);
+            });
+
+            if (printers.length === 0) {
+                showMessage('No printers found on this system', 'error');
+            }
+        }
+
+        // Handle printer selection
+        document.addEventListener('DOMContentLoaded', () => {
+            const select = document.getElementById('printerSelect');
+            select.addEventListener('change', (e) => {
+                const index = e.target.value;
+
+                if (index === '') {
+                    selectedPrinter = null;
+                    document.getElementById('saveBtn').disabled = true;
+                    document.getElementById('printerDetails').style.display = 'none';
+                } else {
+                    selectedPrinter = printers[index];
+                    document.getElementById('saveBtn').disabled = false;
+
+                    // Show printer details
+                    document.getElementById('detailName').textContent = selectedPrinter.Name;
+                    document.getElementById('detailPort').textContent = selectedPrinter.PortName;
+                    document.getElementById('detailDriver').textContent = selectedPrinter.DriverName || 'N/A';
+                    document.getElementById('printerDetails').style.display = 'block';
+                }
+            });
+
+            // Load initial data
+            loadCurrentConfig();
+            loadPrinters();
+        });
+
+        // Save printer configuration
+        async function savePrinter() {
+            if (!selectedPrinter) {
+                showMessage('Please select a printer', 'error');
+                return;
+            }
+
+            const saveBtn = document.getElementById('saveBtn');
+            saveBtn.disabled = true;
+            saveBtn.textContent = '💾 Saving...';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/config/printer`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        printerName: selectedPrinter.Name,
+                        printerPort: selectedPrinter.PortName
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showMessage('✅ Printer configuration saved successfully!', 'success');
+                    loadCurrentConfig(); // Refresh current config display
+                } else {
+                    showMessage(`Failed to save: ${data.error || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`Error: ${error.message}`, 'error');
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.textContent = '💾 Save Configuration';
+            }
+        }
+
+        // Refresh printers list
+        function refreshPrinters() {
+            selectedPrinter = null;
+            document.getElementById('saveBtn').disabled = true;
+            document.getElementById('printerDetails').style.display = 'none';
+            loadPrinters();
+        }
+
+        // Show message
+        function showMessage(text, type) {
+            const container = document.getElementById('messageContainer');
+            container.innerHTML = `<div class="message ${type}">${text}</div>`;
+
+            // Auto-hide success messages after 5 seconds
+            if (type === 'success') {
+                setTimeout(() => {
+                    container.innerHTML = '';
+                }, 5000);
+            }
+        }
+
+        // Clear message
+        function clearMessage() {
+            document.getElementById('messageContainer').innerHTML = '';
+        }
+
+        // Terminal Status Check
+        async function checkTerminalStatus() {
+            const statusBtn = document.getElementById('statusBtn');
+            const responseDiv = document.getElementById('terminalResponse');
+            statusBtn.disabled = true;
+            statusBtn.textContent = '📊 Checking...';
+            responseDiv.classList.remove('show');
+            responseDiv.textContent = '';
+
+            try {
+                const response = await fetch(`${API_BASE}/terminal/status`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    const responseText = JSON.stringify(data, null, 2);
+                    responseDiv.textContent = `Status Check Response:\n${responseText}`;
+                    responseDiv.classList.add('show');
+                    showMessage('✅ Terminal status check initiated successfully!', 'success');
+                } else {
+                    responseDiv.textContent = `Error: ${data.error || 'Unknown error'}`;
+                    responseDiv.classList.add('show');
+                    showMessage(`Failed to check status: ${data.error || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                responseDiv.textContent = `Error: ${error.message}`;
+                responseDiv.classList.add('show');
+                showMessage(`Error: ${error.message}`, 'error');
+            } finally {
+                statusBtn.disabled = false;
+                statusBtn.textContent = '📊 Check Status';
+            }
+        }
+
+        // Trigger Terminal Logon
+        async function triggerLogon() {
+            const logonBtn = document.getElementById('logonBtn');
+            logonBtn.disabled = true;
+            logonBtn.textContent = '🔐 Processing...';
+
+            try {
+                const response = await fetch(`${API_BASE}/terminal/logon`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    // Show detailed response in message
+                    const responseText = JSON.stringify(data, null, 2);
+                    const message = `✅ Terminal logon initiated successfully!\n\nResponse:\n${responseText}`;
+
+                    // Show in alert box
+                    alert(message);
+
+                    // Also show as text message below
+                    showMessage(`✅ Terminal logon initiated successfully! Response: <pre style="margin-top: 10px; padding: 10px; background: #f5f5f5; border-radius: 4px; text-align: left; overflow-x: auto;">${responseText}</pre>`, 'success');
+                } else {
+                    showMessage(`Failed to trigger logon: ${data.error || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                showMessage(`Error: ${error.message}`, 'error');
+            } finally {
+                logonBtn.disabled = false;
+                logonBtn.textContent = '🔐 Trigger Logon';
+            }
+        }
+    </script>
+</body>
+
+</html>

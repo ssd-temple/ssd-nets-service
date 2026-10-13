@@ -1,0 +1,121 @@
+diff --git a/node_modules/nets-service-sdk/dist/index.js b/node_modules/nets-service-sdk/dist/index.js
+index 7084b74..099f23b 100644
+--- a/node_modules/nets-service-sdk/dist/index.js
++++ b/node_modules/nets-service-sdk/dist/index.js
+@@ -104,20 +104,28 @@ var require_winston = __commonJS({
+ var require_manageConfig = __commonJS({
+   "src/manageConfig.js"(exports2, module2) {
+     var fs = require("fs");
++    var path = require("path");
+     var _ = require("lodash");
++    // Patched: pkg's compiled fs shim resolves a bare relative literal like
++    // './config.json' against its snapshot rather than the real disk,
++    // regardless of pkg.assets config -- pkg's own ENOENT error message says
++    // as much ("specify an absolute path ... using process.cwd() or
++    // process.execPath"). Forcing an absolute path here is what actually
++    // makes pkg fall through to a real filesystem read.
++    var CONFIG_PATH = path.join(process.cwd(), "config.json");
+     module2.exports.updateConfig = (data) => {
+       try {
+-        const config = fs.readFileSync("./config.json");
++        const config = fs.readFileSync(CONFIG_PATH);
+         const configJson = JSON.parse(config);
+         _.assignIn(configJson, data);
+-        fs.writeFileSync("config.json", JSON.stringify(configJson, null, "	"));
++        fs.writeFileSync(CONFIG_PATH, JSON.stringify(configJson, null, "	"));
+       } catch (e) {
+         throw e;
+       }
+     };
+     module2.exports.getConfigByKey = (key) => {
+       try {
+-        const config = fs.readFileSync("./config.json");
++        const config = fs.readFileSync(CONFIG_PATH);
+         const configJson = JSON.parse(config);
+         return configJson[key];
+       } catch (e) {
+@@ -126,7 +134,7 @@ var require_manageConfig = __commonJS({
+     };
+     module2.exports.getConfig = () => {
+       try {
+-        const config = fs.readFileSync("./config.json");
++        const config = fs.readFileSync(CONFIG_PATH);
+         return JSON.parse(config);
+       } catch (e) {
+         throw e;
+@@ -1042,6 +1050,31 @@ var require_communication = __commonJS({
+               message: `POS send Purchase command, Terminal doesn't send any reply. Retrying...`
+             });
+             resendData();
++          } else if (requestType === "PAYMENT" || requestType === "CREDIT_PAYMENT") {
++            // SSD patch (see patches/nets-service-sdk+1.1.21.patch): a real
++            // terminal not ACK'ing within 2s x 2 retries does not mean the
++            // transaction never happened — the terminal may already be mid
++            // customer-interaction (PIN entry, processing) and simply slow
++            // to ACK over the serial link. Declaring TERMINAL_ERROR here
++            // unconditionally produced false negatives: the terminal
++            // genuinely completed and charged the customer while the app
++            // reported failure and refused to print a receipt. Function 56
++            // (triggerRecovery) queries the terminal for its own record of
++            // the last transaction's real outcome instead of guessing —
++            // the exact same recovery path already used a few lines below
++            // for a corrupted response frame, just reached from a different
++            // failure condition.
++            logger.log({
++              level: "warn",
++              message: `On ACK/NACK Listener: Terminal did not respond with ACK/NACK after max ${count} retries for a ${requestType}. Verifying real outcome via Recovery before reporting failure.`
++            });
++            sendMessage2("clientRoom", "PAYMENT_MESSAGE", {
++              status: "UNKNOWN",
++              action: "VERIFYING_STATUS",
++              message: "Payment status uncertain. Please wait while we verify...",
++              reason: "ACK_TIMEOUT"
++            });
++            setTimeout(() => exports2.triggerRecovery(), 2e3);
+           } else {
+             logger.log({
+               level: "warn",
+@@ -1159,6 +1192,18 @@ var require_communication = __commonJS({
+             if (count >= 0) {
+               logger.log({ level: "info", message: `Terminal NACK received, retrying ${requestType}...` });
+               resendData();
++            } else if (requestType === "PAYMENT" || requestType === "CREDIT_PAYMENT") {
++              // SSD patch — same reasoning as the two timeout branches above:
++              // verify via Recovery instead of assuming the payment never
++              // went through.
++              logger.warn({ level: "warn", message: `Terminal responded with NACK multiple times for a ${requestType}. Verifying real outcome via Recovery before reporting failure.` });
++              sendMessage2("clientRoom", "PAYMENT_MESSAGE", {
++                status: "UNKNOWN",
++                action: "VERIFYING_STATUS",
++                message: "Payment status uncertain. Please wait while we verify...",
++                reason: "NACK_RETRIES_EXHAUSTED"
++              });
++              setTimeout(() => exports2.triggerRecovery(), 2e3);
+             } else {
+               logger.log({
+                 level: "error",
+@@ -1310,6 +1355,24 @@ var require_communication = __commonJS({
+       if (dataTimeout) clearTimeout(dataTimeout);
+       dataTimeout = setTimeout(() => {
+         dataTimeout = null;
++        // SSD patch (see patches/nets-service-sdk+1.1.21.patch): same
++        // reasoning as the ACK-timeout patch in checkACKorNACK() above — the
++        // terminal already ACK'd (this timeout only starts after that), so
++        // it received the request and may still complete/have completed the
++        // actual transaction even though its result frame never arrived
++        // within 60s. Verify via Recovery (Function 56) instead of
++        // reporting a hard failure the terminal itself may disagree with.
++        if (requestType === "PAYMENT" || requestType === "CREDIT_PAYMENT") {
++          logger.warn({ level: "warn", message: `Terminal response time out (60 seconds) after ACK for a ${requestType}. Verifying real outcome via Recovery before reporting failure.` });
++          sendMessage2("clientRoom", "PAYMENT_MESSAGE", {
++            status: "UNKNOWN",
++            action: "VERIFYING_STATUS",
++            message: "Payment status uncertain. Please wait while we verify...",
++            reason: "DATA_TIMEOUT"
++          });
++          setTimeout(() => exports2.triggerRecovery(), 2e3);
++          return;
++        }
+         logger.error({ level: "error", message: `Terminal response time out (60 seconds) after ACK.` });
+         sendMessage2("clientRoom", "PAYMENT_MESSAGE", {
+           status: "FAILED",

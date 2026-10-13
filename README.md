@@ -1,1 +1,1 @@
-# ssd-nets-service
+# ssd-nets-service — SSD NETS and Printer Service

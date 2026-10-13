@@ -1,0 +1,74 @@
+// Maps SSD-Backend's resolved ticket-groups response (the ticketGroups
+// embedded in POST /payments/nets/callback's response, or a GET
+// /pos/bookings/:id/ticket-groups call — see ssdBackendClient.js) into the
+// receipts[] shape printService.printJSON already understands (see
+// printService.js's buildReceipt). Pure mapping, no I/O and no printing
+// itself — kept separate from ticketPrinter.js's actual print orchestration
+// so this can be unit-tested on its own, the same split
+// common/utils/ticket-grouping.js draws on the SSD-Backend side between
+// "resolve the structure" and "do something with it".
+//
+// One entry in the returned array = one physical ticket/cut — the grouping
+// itself (Deity Wise vs Print Group Wise) already happened on SSD-Backend
+// (see its ticket-grouping.js); this only decides how one resolved
+// TicketGroup renders on paper.
+
+const { getFormattedDateTime } = require('./receiptDateTime');
+
+/**
+ * @param {object} ticketData  { ticketGroups, receipt, temple, customer, splitMode }
+ * @param {{ isReprint?: boolean, reprintNumber?: number, paymentMethod?: string, gstNumber?: string }} [options]
+ * @returns {Array<object>} receipts[] entries for printService.printJSON
+ */
+function buildReceiptsFromTicketGroups(ticketData, options = {}) {
+  const { ticketGroups, receipt, temple } = ticketData || {};
+  if (!Array.isArray(ticketGroups) || ticketGroups.length === 0) {
+    throw new Error('No ticket groups to print — the backend resolved zero tickets for this booking.');
+  }
+
+  const printedAt = getFormattedDateTime();
+
+  return ticketGroups.map((group) => {
+    return {
+      receiptId: receipt?.receiptNo || receipt?.bookingNumber || '',
+      gstNumber: options.gstNumber || '',
+      date: printedAt,
+      // No templeName/templeTamilName/ticketHeading here on purpose — the
+      // logo at the top of the ticket already identifies the temple, and
+      // the print-group/deity heading that used to sit above the items is
+      // now shown per item instead (each item carries its own deityName
+      // below), so a separate ticket-level heading would just repeat it.
+      isReprint: Boolean(options.isReprint),
+      // Which reprint this is (1st, 2nd, ...), printed in the banner: "*** REPRINT #2 ***".
+      reprintNumber: options.isReprint && Number(options.reprintNumber) > 0 ? Number(options.reprintNumber) : null,
+      // Backend-computed sum of this ticket's own lines (ticket-grouping.js's
+      // groupUnitsByKey) — printed only when there's more than one item (see
+      // printService.js/receiptImageGenerator.js), since a single-item
+      // ticket's one line total already is the total. Carried through as a
+      // plain number rather than re-summed here so a rounding edge case
+      // (a line total split unevenly across several deities) can't ever
+      // print a "Total" that disagrees with the line amounts above it.
+      total: typeof group.total === 'number' ? group.total : null,
+      items: (group.lines || []).map((line) => ({
+        name: line.name,
+        tamilName: line.tamilName || '',
+        // Kept separate from `name` (previously concatenated into one
+        // string) so the printed ticket can show the item/service name and
+        // the specific deity it was offered to as their own lines, with
+        // that deity's devotees nested directly under it — see
+        // printService.js/receiptImageGenerator.js's ITEMS block.
+        deityName: line.deityName || '',
+        deityTamilName: line.deityTamilName || '',
+        // Present only when SSD-Backend decided this offering's picture should print (both "print image"
+        // switches on and a picture exists) - see amq/ticketImages.js. Absent/empty = no picture.
+        ...(typeof line.imageUrl === 'string' && line.imageUrl.trim() ? { imageUrl: line.imageUrl.trim() } : {}),
+        quantity: line.quantity,
+        total: Number(line.lineTotal || 0).toFixed(2),
+        devotees: (line.devotees || []).map((d) => ({ name: d.name, nakshatra: d.nakshatra })),
+      })),
+      payment: { method: options.paymentMethod || 'NETS' },
+    };
+  });
+}
+
+module.exports = { buildReceiptsFromTicketGroups };

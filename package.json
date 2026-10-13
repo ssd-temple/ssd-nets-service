@@ -1,0 +1,103 @@
+{
+  "name": "kioskservice",
+  "version": "1.0.3",
+  "description": "Kiosk Payment Terminal Service",
+  "main": "electron/main.js",
+  "bin": "index.js",
+  "scripts": {
+    "test": "jest --coverage --runInBand",
+    "start": "node index.js",
+    "start:electron": "electron .",
+    "build": "nexe index.js",
+    "package": "ncc build index.js -o dist",
+    "electron:dev": "electron .",
+    "electron:build": "electron-builder --win",
+    "electron:build:out": "electron-builder --win --config.directories.output=D:\\New_EXE",
+    "electron:build:installer": "powershell -ExecutionPolicy Bypass -File .\\installer\\build-installer.ps1"
+  },
+  "author": "Sri Siva Durga Temple",
+  "license": "ISC",
+  "dependencies": {
+    "@pokusew/escpos": "^3.0.8",
+    "amqplib": "^0.10.3",
+    "aws-sdk": "^2.1369.0",
+    "axios": "^1.8.4",
+    "better-sqlite3": "^12.6.0",
+    "cors": "^2.8.5",
+    "dollars-to-cents": "^1.0.3",
+    "dotenv": "^16.0.3",
+    "escpos": "2.3.2",
+    "escpos-buffer": "^3.1.0",
+    "escpos-serialport": "^3.0.0-alpha.4",
+    "escpos-usb": "^3.0.0-alpha.4",
+    "express": "^4.21.2",
+    "express-requests-logger": "^4.0.0",
+    "fs": "0.0.1-security",
+    "iconv-lite": "^0.7.2",
+    "lodash": "^4.17.21",
+    "moment": "^2.29.4",
+    "mutable-buffer": "^2.2.2",
+    "nets-service-sdk": "^1.1.6",
+    "node-cron": "^3.0.2",
+    "node-printer": "^1.0.4",
+    "path": "^0.12.7",
+    "pdf-to-base64": "^1.0.3",
+    "pdfkit": "^0.13.0",
+    "pdfmake": "^0.2.7",
+    "receiptline": "^1.15.0",
+    "request": "^2.88.2",
+    "serialport": "^10.5.0",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.7.2",
+    "usb": "^2.9.0",
+    "winston": "^3.8.2"
+  },
+  "devDependencies": {
+    "@vercel/ncc": "^0.38.3",
+    "electron": "^29.4.6",
+    "electron-builder": "^24.6.0",
+    "jest": "^29.7.0",
+    "nexe": "^5.0.0-beta.4",
+    "pkg": "^5.8.1"
+  },
+  "build": {
+    "appId": "com.srisivadurgatemple.kioskservice",
+    "productName": "NETS and Printer Service.",
+    "artifactName": "SSD_EXE_${version}_Setup.${ext}",
+    "files": [
+      "source/**/*",
+      "!source/node_modules/**/*",
+      "!source/log/**/*",
+      "!source/temp/**/*",
+      "!source/pkg-nkt-*.log",
+      "!source/package-lock.json",
+      "!source/build-installer.ps1",
+      "!source/clean-uninstall.ps1",
+      "!source/setup.iss",
+      "!node_modules/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "source/kioskservice.exe",
+      "source/index.js",
+      "source/.env",
+      "source/config.json",
+      "source/package.json",
+      "source/**/*.node",
+      "source/**/*.dll",
+      "source/fonts/**",
+      "source/fontconfig/**",
+      "source/addons/**",
+      "source/scripts/**"
+    ],
+    "directories": {
+      "output": "D:\\PROJECTS\\SRI_SIVA_DURGA\\SSD_EXE\\unpacked"
+    },
+    "win": {
+      "target": "dir",
+      "icon": "assets/app-icon.ico",
+      "publisherName": "Sri Siva Durga Temple"
+    }
+  }
+}
