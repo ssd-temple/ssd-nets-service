@@ -140,7 +140,7 @@ class ReceiptImageGenerator {
         if (receipt.items && Array.isArray(receipt.items)) {
             receipt.items.forEach(item => {
                 estimatedHeight += 120; // Name + Tamil Name + Qty + Price
-                if (item._pictureImage) estimatedHeight += 330; // picture (max 300 tall) + gaps
+                if (item._pictureImage) estimatedHeight += 260; // picture (max 230 tall) + gaps
                 if (item.category) estimatedHeight += 60;
                 if (item.deityName || item.deityTamilName) estimatedHeight += 40;
                 const devoteeCount = (item.familMemberDetails && item.familMemberDetails.length) || (item.devotees && item.devotees.length) || 0;
@@ -278,8 +278,8 @@ class ReceiptImageGenerator {
 
                 // Picture of the item (only when one was downloaded) - same spot as the real ticket.
                 if (item._pictureImage) {
-                    const maxW = 384;
-                    const maxH = 300;
+                    const maxW = 300;
+                    const maxH = 230;
                     const sc = Math.min(maxW / item._pictureImage.width, maxH / item._pictureImage.height, 1);
                     const dw = Math.round(item._pictureImage.width * sc);
                     const dh = Math.round(item._pictureImage.height * sc);

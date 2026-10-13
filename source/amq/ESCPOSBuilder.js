@@ -563,7 +563,7 @@ ESCPOSBuilder.getLogoRaster = async function getLogoRaster(logoPath, receiptWidt
  * @param {number} [maxHeight]  keeps one picture from eating the whole ticket
  * @returns {Promise<Buffer|null>}
  */
-ESCPOSBuilder.getImageRaster = async function getImageRaster(imageBuffer, maxWidth = 384, maxHeight = 300) {
+ESCPOSBuilder.getImageRaster = async function getImageRaster(imageBuffer, maxWidth = 300, maxHeight = 230) {
     if (canvasLoadError || !imageBuffer || imageBuffer.length === 0) return null;
     try {
         const img = await loadImage(imageBuffer);
