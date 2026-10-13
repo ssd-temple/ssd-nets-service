@@ -124,6 +124,15 @@ describe("buildReceiptsFromTicketGroups", () => {
     expect(receipts[0].items[1]).not.toHaveProperty("imageUrl");
   });
 
+  test("each reprinted ticket carries its own reprint number, falling back to the job-wide one", () => {
+    const data = sampleTicketData();
+    data.ticketGroups.push({ ...data.ticketGroups[0], lines: [data.ticketGroups[0].lines[0]] });
+    data.ticketGroups[0].reprintNumber = 4;
+    const receipts = buildReceiptsFromTicketGroups(data, { isReprint: true, reprintNumber: 1 });
+    expect(receipts[0].reprintNumber).toBe(4);
+    expect(receipts[1].reprintNumber).toBe(1);
+  });
+
   test("a reprint carries its number for the REPRINT #n banner; a normal print carries none", () => {
     const reprint = buildReceiptsFromTicketGroups(sampleTicketData(), { isReprint: true, reprintNumber: 3 });
     expect(reprint[0].isReprint).toBe(true);

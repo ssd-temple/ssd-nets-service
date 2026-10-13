@@ -40,7 +40,15 @@ function buildReceiptsFromTicketGroups(ticketData, options = {}) {
       // below), so a separate ticket-level heading would just repeat it.
       isReprint: Boolean(options.isReprint),
       // Which reprint this is (1st, 2nd, ...), printed in the banner: "*** REPRINT #2 ***".
-      reprintNumber: options.isReprint && Number(options.reprintNumber) > 0 ? Number(options.reprintNumber) : null,
+      // Each ticket carries its OWN reprint number (group.reprintNumber, set by the Reprint popup from that ticket's
+      // count); a job-wide options.reprintNumber is only the fallback.
+      reprintNumber: options.isReprint
+        ? Number(group.reprintNumber) > 0
+          ? Number(group.reprintNumber)
+          : Number(options.reprintNumber) > 0
+            ? Number(options.reprintNumber)
+            : null
+        : null,
       // Backend-computed sum of this ticket's own lines (ticket-grouping.js's
       // groupUnitsByKey) — printed only when there's more than one item (see
       // printService.js/receiptImageGenerator.js), since a single-item
