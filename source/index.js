@@ -1442,26 +1442,25 @@ app.post("/api/config/service", async (req, res) => {
     // one (a temple only ever has one backend, and a second field just
     // meant two places to keep in sync).
     if (environment !== undefined && environment !== null && environment !== '') {
-      // UAT / Production profile: saves this environment's Cloud URL, update
-      // repo, GitHub token and callback secret and makes it the active one.
+      // UAT / Production profile: saves this environment's Cloud URL and
+      // callback secret and makes it the active one.
       try {
         Object.assign(
           updates,
           configUtil.applyEnvironmentSettings(configUtil.readConfig(), environment, {
             cloud_url,
-            updateRepo,
-            githubToken,
             callbackSecret,
           })
         );
       } catch (envError) {
         return res.status(400).send({ success: false, error: envError.message });
       }
-    } else {
-      if (cloud_url !== undefined) updates.cloud_url = cloud_url;
-      if (updateRepo !== undefined) updates.updateRepo = updateRepo;
-      if (githubToken !== undefined) updates.githubToken = githubToken;
+    } else if (cloud_url !== undefined) {
+      updates.cloud_url = cloud_url;
     }
+    // Shared by both environments.
+    if (updateRepo !== undefined) updates.updateRepo = updateRepo;
+    if (githubToken !== undefined) updates.githubToken = githubToken;
     if (com !== undefined) updates.com = com;
     if (simulation !== undefined) updates.simulation = Boolean(simulation);
 

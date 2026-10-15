@@ -388,24 +388,25 @@ function migrateFromLegacyConfig(legacyPath) {
 
 
 // ── Environment profiles (UAT / Production) ───────────────
-// One install can be pointed at either backend. Each profile keeps its own
-// Cloud URL, update repo, GitHub token and callback secret, and nothing is
-// pre-filled: an operator enters every value, so no real address or secret
-// ever ships inside the exe or the repo. The active profile is mirrored into
-// the flat keys (cloud_url, updateRepo, githubToken, callbackSecret) that the
-// rest of the service already reads.
+// One install can be pointed at either backend. Each profile keeps only the
+// two values that differ between them: the Cloud URL and the callback secret.
+// Nothing is pre-filled — an operator enters both, so no real address or
+// secret ever ships inside the exe or the repo. The update repo and GitHub
+// token are shared by both environments and stay flat keys. The active
+// profile is mirrored into the flat keys (cloud_url, callbackSecret) the rest
+// of the service already reads.
 const ENVIRONMENTS = ['uat', 'production'];
-const ENVIRONMENT_FIELDS = ['cloud_url', 'updateRepo', 'githubToken', 'callbackSecret'];
+const ENVIRONMENT_FIELDS = ['cloud_url', 'callbackSecret'];
 
 /**
  * Pure: returns the config keys to write after saving `fields` into the
  * `environment` profile and making it the active one. A blank
  * `callbackSecret` keeps the secret already stored (the page never shows it
- * back, so an untouched field must not erase it); every other field is
- * saved exactly as given, so it can be cleared.
+ * back, so an untouched field must not erase it); the Cloud URL is saved
+ * exactly as given, so it can be cleared.
  * @param {object} config       current config
  * @param {string} environment  'uat' | 'production'
- * @param {object} fields       any of ENVIRONMENT_FIELDS
+ * @param {object} fields       { cloud_url, callbackSecret }
  */
 function applyEnvironmentSettings(config, environment, fields = {}) {
     if (!ENVIRONMENTS.includes(environment)) {
@@ -420,14 +421,12 @@ function applyEnvironmentSettings(config, environment, fields = {}) {
         if (key === 'callbackSecret' && value === '') continue;
         profile[key] = value;
     }
-    environments[environment] = profile;
+    environments[environment] = { cloud_url: profile.cloud_url || '', callbackSecret: profile.callbackSecret || '' };
 
     return {
         environments,
         activeEnvironment: environment,
         cloud_url: profile.cloud_url || '',
-        updateRepo: profile.updateRepo || DEFAULT_UPDATE_REPO,
-        githubToken: profile.githubToken || '',
         callbackSecret: profile.callbackSecret || '',
     };
 }
@@ -442,8 +441,6 @@ function describeEnvironments(config) {
         const profile = (config.environments || {})[name] || {};
         out[name] = {
             cloud_url: profile.cloud_url || '',
-            updateRepo: profile.updateRepo || DEFAULT_UPDATE_REPO,
-            githubToken: profile.githubToken || '',
             hasCallbackSecret: Boolean(profile.callbackSecret),
         };
     }
