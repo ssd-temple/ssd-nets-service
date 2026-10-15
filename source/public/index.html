@@ -490,11 +490,7 @@
             .field-grid, .version-panel, .current-config { grid-template-columns: 1fr; }
             .console { width: calc(100% - 36px); padding: 30px 0 70px; }
         }
-            .env-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--hairline-strong); }
-        .env-tab { background: none; border: 0; border-bottom: 3px solid transparent; margin-bottom: -1px; padding: 10px 22px; cursor: pointer; font-family: var(--font-body); font-size: 14px; font-weight: 600; color: var(--ink-faint); }
-        .env-tab:hover { color: var(--ink); }
-        .env-tab.active { color: var(--petal); border-bottom-color: var(--petal); }
-</style>
+    </style>
 </head>
 
 <body>
@@ -586,22 +582,15 @@
                     <h2 class="panel-title">Service Configuration</h2>
                 </div>
                 <div class="panel-body" style="display:flex; flex-direction:column; gap:16px;">
-                    <div>
-                        <div class="env-tabs" role="tablist" aria-label="Environment">
-                            <button type="button" role="tab" class="env-tab" id="envBtnUat" onclick="selectEnvironment('uat')">UAT</button>
-                            <button type="button" role="tab" class="env-tab" id="envBtnProduction" onclick="selectEnvironment('production')">Production</button>
-                        </div>
-                        <small id="envStatus" style="color: var(--ink-faint); display: block; margin-top: 8px;"></small>
-                    </div>
                     <div class="field-grid">
                         <div class="form-group" style="grid-column: 1 / -1;">
                             <label for="cloudUrl">Cloud URL</label>
                             <input type="text" id="cloudUrl" placeholder="https://api.example.com">
-                            <small style="color: var(--ink-faint); display: block; margin-top: 2px;">SSD-Backend's base address for this environment, used for device registration and to confirm/print a NETS payment once the terminal approves it. No trailing /api/v1.</small>
+                            <small style="color: var(--ink-faint); display: block; margin-top: 2px;">SSD-Backend's base address, used for device registration and to confirm/print a NETS payment once the terminal approves it. No trailing /api/v1.</small>
                         </div>
                         <div class="form-group" style="grid-column: 1 / -1;">
                             <label for="cfgCallbackSecret">Callback Secret</label>
-                            <input type="password" id="cfgCallbackSecret" autocomplete="off" placeholder="Enter the secret for this environment">
+                            <input type="password" id="cfgCallbackSecret" autocomplete="off" placeholder="Enter the callback secret">
                             <small id="callbackSecretHint" style="color: var(--ink-faint); display: block; margin-top: 2px;">Must be exactly the NETS_CALLBACK_SECRET set on that backend. It is saved on this PC only and never shown again; leave it blank to keep the saved one.</small>
                         </div>
                     </div>
@@ -615,7 +604,7 @@
                         <div class="form-group" style="grid-column: 1 / -1;">
                             <label for="cfgUpdateRepo">GitHub Update Repo</label>
                             <input type="text" id="cfgUpdateRepo" placeholder="https://github.com/owner/repo">
-                            <small style="color: var(--ink-faint); display: block; margin-top: 2px;">Use a GitHub repo URL to check for new releases. Shared by UAT and Production.</small>
+                            <small style="color: var(--ink-faint); display: block; margin-top: 2px;">Use a GitHub repo URL to check for new releases.</small>
                         </div>
                         <div class="form-group" style="grid-column: 1 / -1;">
                             <label for="cfgGithubToken">GitHub Token</label>
@@ -813,12 +802,14 @@
                     document.getElementById('installedVersionText').textContent = data.config.displayVersion || `SSD_EXE_${data.config.version}`;
 
                     // Service fields
-                    envProfiles = data.config.environments || {};
-                    // Shared by both environments.
+                    document.getElementById('cloudUrl').value = data.config.cloud_url || '';
                     document.getElementById('cfgUpdateRepo').value = data.config.updateRepo || '';
                     document.getElementById('cfgGithubToken').value = data.config.githubToken || '';
-                    // Opens on UAT until an environment has been saved on this PC.
-                    selectEnvironment(data.config.activeEnvironment || 'uat');
+                    const secretInput = document.getElementById('cfgCallbackSecret');
+                    secretInput.value = '';
+                    secretInput.placeholder = data.config.hasCallbackSecret
+                        ? 'Saved (leave blank to keep it)'
+                        : 'Enter the callback secret';
                     // Load ports and set selected values
                     await loadPorts(data.config.com);
                     document.getElementById('cfgSimulation').checked = data.config.simulation || false;
@@ -970,28 +961,6 @@
             }
         }
 
-        // UAT / Production profiles: only the Cloud URL and callback secret differ.
-        let envProfiles = {};
-        let selectedEnv = null;
-
-        function selectEnvironment(env) {
-            selectedEnv = env;
-            const profile = envProfiles[env] || {};
-            document.getElementById('cloudUrl').value = profile.cloud_url || '';
-            const secretInput = document.getElementById('cfgCallbackSecret');
-            secretInput.value = '';
-            secretInput.placeholder = profile.hasCallbackSecret
-                ? 'Saved for this environment (leave blank to keep it)'
-                : 'Enter the secret for this environment';
-            for (const name of ['uat', 'production']) {
-                const btn = document.getElementById(name === 'uat' ? 'envBtnUat' : 'envBtnProduction');
-                btn.className = name === env ? 'env-tab active' : 'env-tab';
-                btn.setAttribute('aria-selected', name === env ? 'true' : 'false');
-            }
-            document.getElementById('envStatus').textContent =
-                `Editing ${env === 'uat' ? 'UAT' : 'Production'}. Save Service Config makes it the environment this PC uses.`;
-        }
-
         // Save service configuration
         async function saveServiceConfig() {
             const btn = document.getElementById('saveServiceBtn');
@@ -1000,12 +969,7 @@
             let data = null;
 
             try {
-                if (!selectedEnv) {
-                    showMessage('Choose UAT or Production first.', 'error');
-                    return;
-                }
                 const payload = {
-                    environment: selectedEnv,
                     callbackSecret: document.getElementById('cfgCallbackSecret').value,
                     cloud_url: document.getElementById('cloudUrl').value,
                     com: document.getElementById('cfgCom').value,

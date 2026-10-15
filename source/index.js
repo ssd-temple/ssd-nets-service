@@ -1177,9 +1177,8 @@ app.get("/api/config", async (req, res) => {
         updateRepo: config.updateRepo || '',
         githubToken: config.githubToken || '',
         // The callback secret is never sent back to the page — only whether
-        // one is stored, per environment.
-        activeEnvironment: config.activeEnvironment || null,
-        environments: configUtil.describeEnvironments(config),
+        // one is stored.
+        hasCallbackSecret: Boolean(config.callbackSecret),
         version,
         displayVersion: `${DISPLAY_VERSION_PREFIX}${version}`,
         lastUpdateCheckAt: config.lastUpdateCheckAt || null,
@@ -1431,7 +1430,6 @@ app.post("/api/config/service", async (req, res) => {
       simulation,
       updateRepo,
       githubToken,
-      environment,
       callbackSecret,
     } = req.body;
 
@@ -1441,24 +1439,9 @@ app.post("/api/config/service", async (req, res) => {
     // separate "SSD Backend URL" field was removed in favor of reusing this
     // one (a temple only ever has one backend, and a second field just
     // meant two places to keep in sync).
-    if (environment !== undefined && environment !== null && environment !== '') {
-      // UAT / Production profile: saves this environment's Cloud URL and
-      // callback secret and makes it the active one.
-      try {
-        Object.assign(
-          updates,
-          configUtil.applyEnvironmentSettings(configUtil.readConfig(), environment, {
-            cloud_url,
-            callbackSecret,
-          })
-        );
-      } catch (envError) {
-        return res.status(400).send({ success: false, error: envError.message });
-      }
-    } else if (cloud_url !== undefined) {
-      updates.cloud_url = cloud_url;
+    if (cloud_url !== undefined || callbackSecret !== undefined) {
+      Object.assign(updates, configUtil.applyConnectionSettings({ cloud_url, callbackSecret }));
     }
-    // Shared by both environments.
     if (updateRepo !== undefined) updates.updateRepo = updateRepo;
     if (githubToken !== undefined) updates.githubToken = githubToken;
     if (com !== undefined) updates.com = com;
@@ -1480,7 +1463,7 @@ app.post("/api/config/service", async (req, res) => {
     configUtil.syncSdkConfigFile();
 
     // Secrets stay out of the log and out of the response.
-    const { environments: _profiles, githubToken: _token, callbackSecret: _secret, ...safeUpdates } = updates;
+    const { githubToken: _token, callbackSecret: _secret, ...safeUpdates } = updates;
     logger.log({
       level: "info",
       message: `Service configuration updated: ${JSON.stringify(safeUpdates)}`,

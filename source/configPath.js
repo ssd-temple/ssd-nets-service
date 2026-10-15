@@ -387,64 +387,31 @@ function migrateFromLegacyConfig(legacyPath) {
 }
 
 
-// ── Environment profiles (UAT / Production) ───────────────
-// One install can be pointed at either backend. Each profile keeps only the
-// two values that differ between them: the Cloud URL and the callback secret.
-// Nothing is pre-filled — an operator enters both, so no real address or
-// secret ever ships inside the exe or the repo. The update repo and GitHub
-// token are shared by both environments and stay flat keys. The active
-// profile is mirrored into the flat keys (cloud_url, callbackSecret) the rest
-// of the service already reads.
-const ENVIRONMENTS = ['uat', 'production'];
-const ENVIRONMENT_FIELDS = ['cloud_url', 'callbackSecret'];
+// ── Backend connection (Cloud URL + callback secret) ──────
+// Entered per install on the Configuration page; nothing is pre-filled, so no
+// real address or secret ships inside the exe or the repo.
 
 /**
- * Pure: returns the config keys to write after saving `fields` into the
- * `environment` profile and making it the active one. A blank
- * `callbackSecret` keeps the secret already stored (the page never shows it
+ * Pure: the config keys to write when saving the connection. A blank
+ * `callbackSecret` keeps the one already stored (the page never shows it
  * back, so an untouched field must not erase it); the Cloud URL is saved
- * exactly as given, so it can be cleared.
- * @param {object} config       current config
- * @param {string} environment  'uat' | 'production'
- * @param {object} fields       { cloud_url, callbackSecret }
+ * exactly as given, so it can be cleared. `environments` and
+ * `activeEnvironment` are cleared too: they belong to 1.0.5's UAT/Production
+ * tabs, which no longer exist, and would otherwise keep a stale copy of the
+ * secret on disk (JSON.stringify drops undefined values when the config is
+ * written).
+ * @param {object} fields  { cloud_url, callbackSecret }
  */
-function applyEnvironmentSettings(config, environment, fields = {}) {
-    if (!ENVIRONMENTS.includes(environment)) {
-        throw new Error(`Unknown environment "${environment}" — expected one of: ${ENVIRONMENTS.join(', ')}.`);
+function applyConnectionSettings(fields = {}) {
+    const updates = { environments: undefined, activeEnvironment: undefined };
+    if (fields.cloud_url !== undefined && fields.cloud_url !== null) {
+        updates.cloud_url = String(fields.cloud_url).trim();
     }
-    const environments = { ...(config.environments || {}) };
-    const profile = { ...(environments[environment] || {}) };
-
-    for (const key of ENVIRONMENT_FIELDS) {
-        if (fields[key] === undefined || fields[key] === null) continue;
-        const value = String(fields[key]).trim();
-        if (key === 'callbackSecret' && value === '') continue;
-        profile[key] = value;
-    }
-    environments[environment] = { cloud_url: profile.cloud_url || '', callbackSecret: profile.callbackSecret || '' };
-
-    return {
-        environments,
-        activeEnvironment: environment,
-        cloud_url: profile.cloud_url || '',
-        callbackSecret: profile.callbackSecret || '',
-    };
-}
-
-/**
- * Pure: the profiles as safe to send to the Configuration page — the
- * callback secret is replaced by a `hasCallbackSecret` flag.
- */
-function describeEnvironments(config) {
-    const out = {};
-    for (const name of ENVIRONMENTS) {
-        const profile = (config.environments || {})[name] || {};
-        out[name] = {
-            cloud_url: profile.cloud_url || '',
-            hasCallbackSecret: Boolean(profile.callbackSecret),
-        };
-    }
-    return out;
+    const secret = fields.callbackSecret === undefined || fields.callbackSecret === null
+        ? ''
+        : String(fields.callbackSecret).trim();
+    if (secret !== '') updates.callbackSecret = secret;
+    return updates;
 }
 
 module.exports = {
@@ -460,8 +427,6 @@ module.exports = {
     syncSdkConfigFile,
     syncFromSdkConfigFile,
     migrateFromLegacyConfig,
-    ENVIRONMENTS,
     DEFAULT_UPDATE_REPO,
-    applyEnvironmentSettings,
-    describeEnvironments,
+    applyConnectionSettings,
 };
