@@ -20,17 +20,6 @@ const logger = require("nets-service-sdk").logger(module);
 const httpAgent = new http.Agent({ family: 4 });
 const httpsAgent = new https.Agent({ family: 4 });
 
-// A per-install "NETS Callback Secret" field used to live on the
-// Configuration page, matched against SSD-Backend's own NETS_CALLBACK_SECRET
-// env var — in practice this just meant two independent files that had to
-// be kept in sync by hand, and any drift between them (one side's value
-// changed, the other forgotten) silently broke every NETS payment
-// confirmation until someone noticed the error message. Fixed here instead:
-// SSD-Backend's src/config/env.js now carries this exact same string as
-// NETS_CALLBACK_SECRET's own default, so there is nothing left to
-// configure or keep in sync on either side.
-const NETS_CALLBACK_SECRET = 'sdfsfdsfadfsafs';
-
 /**
  * @param {{ referenceId: string, gatewayReference: string, amount?: number, terminalId?: string, approvalCode?: string, terminalResponse?: object }} payload
  * @returns {Promise<{ ticketData: object|null, ticketDataError: string|null, alreadyProcessed?: boolean, [key: string]: any }>}
@@ -48,10 +37,16 @@ async function confirmNetsPayment(payload) {
     // here rather than a second, easy-to-forget "SSD Backend URL" field.
     const config = configUtil.readConfig();
     const backendUrl = config.cloud_url || process.env.URL;
-    const callbackSecret = NETS_CALLBACK_SECRET;
+    // Entered per environment (UAT / Production) on the Configuration page and
+    // never shipped inside the exe: it must equal NETS_CALLBACK_SECRET in that
+    // backend's own environment file.
+    const callbackSecret = String(config.callbackSecret || '').trim();
 
     if (!backendUrl) {
         throw new Error('Cannot confirm NETS payment with SSD-Backend — set "Cloud URL" on the Configuration page.');
+    }
+    if (!callbackSecret) {
+        throw new Error('Cannot confirm NETS payment with SSD-Backend — set "Callback Secret" on the Configuration page.');
     }
 
     const url = `${backendUrl.replace(/\/+$/, '')}${CONSTANTS.API_ENDPOINTS.SSD_NETS_CALLBACK}`;

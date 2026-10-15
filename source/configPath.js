@@ -25,15 +25,12 @@ const LOG_DIRNAME = 'logs';
 // syncSdkConfigFile() overwrites that file in place with the current
 // .netConfig content on every run, so once the service has started once it
 // no longer holds a pristine default and can't be used as one.
+// The one public repo every install checks for new releases. A repo address
+// is not a secret (the GitHub token is, and is never defaulted).
+const DEFAULT_UPDATE_REPO = 'https://github.com/ssd-temple/ssd-nets-service';
+
 const BACKFILL_DEFAULTS = {
-    // Left blank rather than pointing at HEB's repo (HinduEndowmentsBoard/
-    // NETS-Service) — SSD's own Nets-Service source doesn't live at its own
-    // GitHub location yet. Set this to SSD's real repo once one exists,
-    // either here or per-install via the Configuration page's Update Repo
-    // field / UPDATE_REPO_URL env var (see source/index.js's own fallback
-    // chain) — the auto-update check simply finds nothing to update while
-    // this is empty, rather than failing.
-    updateRepo: '',
+    updateRepo: DEFAULT_UPDATE_REPO,
 };
 
 // A machine set up before the "leave updateRepo blank" fix above still has
@@ -389,6 +386,70 @@ function migrateFromLegacyConfig(legacyPath) {
     }
 }
 
+
+// ── Environment profiles (UAT / Production) ───────────────
+// One install can be pointed at either backend. Each profile keeps its own
+// Cloud URL, update repo, GitHub token and callback secret, and nothing is
+// pre-filled: an operator enters every value, so no real address or secret
+// ever ships inside the exe or the repo. The active profile is mirrored into
+// the flat keys (cloud_url, updateRepo, githubToken, callbackSecret) that the
+// rest of the service already reads.
+const ENVIRONMENTS = ['uat', 'production'];
+const ENVIRONMENT_FIELDS = ['cloud_url', 'updateRepo', 'githubToken', 'callbackSecret'];
+
+/**
+ * Pure: returns the config keys to write after saving `fields` into the
+ * `environment` profile and making it the active one. A blank
+ * `callbackSecret` keeps the secret already stored (the page never shows it
+ * back, so an untouched field must not erase it); every other field is
+ * saved exactly as given, so it can be cleared.
+ * @param {object} config       current config
+ * @param {string} environment  'uat' | 'production'
+ * @param {object} fields       any of ENVIRONMENT_FIELDS
+ */
+function applyEnvironmentSettings(config, environment, fields = {}) {
+    if (!ENVIRONMENTS.includes(environment)) {
+        throw new Error(`Unknown environment "${environment}" — expected one of: ${ENVIRONMENTS.join(', ')}.`);
+    }
+    const environments = { ...(config.environments || {}) };
+    const profile = { ...(environments[environment] || {}) };
+
+    for (const key of ENVIRONMENT_FIELDS) {
+        if (fields[key] === undefined || fields[key] === null) continue;
+        const value = String(fields[key]).trim();
+        if (key === 'callbackSecret' && value === '') continue;
+        profile[key] = value;
+    }
+    environments[environment] = profile;
+
+    return {
+        environments,
+        activeEnvironment: environment,
+        cloud_url: profile.cloud_url || '',
+        updateRepo: profile.updateRepo || DEFAULT_UPDATE_REPO,
+        githubToken: profile.githubToken || '',
+        callbackSecret: profile.callbackSecret || '',
+    };
+}
+
+/**
+ * Pure: the profiles as safe to send to the Configuration page — the
+ * callback secret is replaced by a `hasCallbackSecret` flag.
+ */
+function describeEnvironments(config) {
+    const out = {};
+    for (const name of ENVIRONMENTS) {
+        const profile = (config.environments || {})[name] || {};
+        out[name] = {
+            cloud_url: profile.cloud_url || '',
+            updateRepo: profile.updateRepo || DEFAULT_UPDATE_REPO,
+            githubToken: profile.githubToken || '',
+            hasCallbackSecret: Boolean(profile.callbackSecret),
+        };
+    }
+    return out;
+}
+
 module.exports = {
     CONFIG_FILENAME,
     getConfigDir,
@@ -402,4 +463,8 @@ module.exports = {
     syncSdkConfigFile,
     syncFromSdkConfigFile,
     migrateFromLegacyConfig,
+    ENVIRONMENTS,
+    DEFAULT_UPDATE_REPO,
+    applyEnvironmentSettings,
+    describeEnvironments,
 };

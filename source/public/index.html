@@ -490,7 +490,11 @@
             .field-grid, .version-panel, .current-config { grid-template-columns: 1fr; }
             .console { width: calc(100% - 36px); padding: 30px 0 70px; }
         }
-    </style>
+            .env-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--hairline-strong); }
+        .env-tab { background: none; border: 0; border-bottom: 3px solid transparent; margin-bottom: -1px; padding: 10px 22px; cursor: pointer; font-family: var(--font-body); font-size: 14px; font-weight: 600; color: var(--ink-faint); }
+        .env-tab:hover { color: var(--ink); }
+        .env-tab.active { color: var(--petal); border-bottom-color: var(--petal); }
+</style>
 </head>
 
 <body>
@@ -582,6 +586,13 @@
                     <h2 class="panel-title">Service Configuration</h2>
                 </div>
                 <div class="panel-body" style="display:flex; flex-direction:column; gap:16px;">
+                    <div>
+                        <div class="env-tabs" role="tablist" aria-label="Environment">
+                            <button type="button" role="tab" class="env-tab" id="envBtnUat" onclick="selectEnvironment('uat')">UAT</button>
+                            <button type="button" role="tab" class="env-tab" id="envBtnProduction" onclick="selectEnvironment('production')">Production</button>
+                        </div>
+                        <small id="envStatus" style="color: var(--ink-faint); display: block; margin-top: 8px;">Choose UAT or Production. Each tab keeps its own Cloud URL, callback secret and GitHub token.</small>
+                    </div>
                     <div class="field-grid">
                         <div class="form-group" style="grid-column: 1 / -1;">
                             <label for="cloudUrl">Cloud URL</label>
@@ -593,6 +604,11 @@
                             <select id="cfgCom">
                                 <option value="">Loading ports...</option>
                             </select>
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label for="cfgCallbackSecret">Callback Secret</label>
+                            <input type="password" id="cfgCallbackSecret" autocomplete="off" placeholder="Enter the secret for this environment">
+                            <small id="callbackSecretHint" style="color: var(--ink-faint); display: block; margin-top: 2px;">Must be exactly the NETS_CALLBACK_SECRET set on that backend. It is saved on this PC only and never shown again; leave it blank to keep the saved one.</small>
                         </div>
                         <div class="form-group" style="grid-column: 1 / -1;">
                             <label for="cfgUpdateRepo">GitHub Update Repo</label>
@@ -795,9 +811,16 @@
                     document.getElementById('installedVersionText').textContent = data.config.displayVersion || `SSD_EXE_${data.config.version}`;
 
                     // Service fields
-                    document.getElementById('cloudUrl').value = data.config.cloud_url || '';
-                    document.getElementById('cfgUpdateRepo').value = data.config.updateRepo || '';
-                    document.getElementById('cfgGithubToken').value = data.config.githubToken || '';
+                    envProfiles = data.config.environments || {};
+                    legacyProfile = {
+                        cloud_url: data.config.cloud_url || '',
+                        updateRepo: data.config.updateRepo || '',
+                        githubToken: data.config.githubToken || '',
+                        hasCallbackSecret: false,
+                    };
+                    // An install saved before environments existed has no active one yet:
+                    // show what it has, and make the operator pick which environment it is.
+                    selectEnvironment(data.config.activeEnvironment || null);
                     // Load ports and set selected values
                     await loadPorts(data.config.com);
                     document.getElementById('cfgSimulation').checked = data.config.simulation || false;
@@ -949,6 +972,37 @@
             }
         }
 
+        // UAT / Production profiles
+        let envProfiles = {};
+        let legacyProfile = null;
+        let selectedEnv = null;
+
+        function selectEnvironment(env) {
+            selectedEnv = env;
+            const profile = (env && envProfiles[env]) || legacyProfile || {};
+            // A profile that has never been saved falls back to the pre-environment values once,
+            // so an existing install does not look empty.
+            const useLegacy = env && !(envProfiles[env] && (envProfiles[env].cloud_url || envProfiles[env].hasCallbackSecret));
+            const shown = useLegacy && legacyProfile ? legacyProfile : profile;
+            document.getElementById('cloudUrl').value = shown.cloud_url || '';
+            document.getElementById('cfgUpdateRepo').value = shown.updateRepo || '';
+            document.getElementById('cfgGithubToken').value = shown.githubToken || '';
+            const secretInput = document.getElementById('cfgCallbackSecret');
+            secretInput.value = '';
+            secretInput.placeholder = profile.hasCallbackSecret
+                ? 'Saved for this environment (leave blank to keep it)'
+                : 'Enter the secret for this environment';
+            for (const name of ['uat', 'production']) {
+                const btn = document.getElementById(name === 'uat' ? 'envBtnUat' : 'envBtnProduction');
+                btn.className = name === env ? 'env-tab active' : 'env-tab';
+                btn.setAttribute('aria-selected', name === env ? 'true' : 'false');
+            }
+            document.getElementById('saveServiceBtn').disabled = !env;
+            document.getElementById('envStatus').textContent = env
+                ? `Editing ${env === 'uat' ? 'UAT' : 'Production'}. Save Service Config makes it the environment this PC uses.`
+                : 'Choose UAT or Production first. Each tab keeps its own Cloud URL, callback secret and GitHub token.';
+        }
+
         // Save service configuration
         async function saveServiceConfig() {
             const btn = document.getElementById('saveServiceBtn');
@@ -957,7 +1011,13 @@
             let data = null;
 
             try {
+                if (!selectedEnv) {
+                    showMessage('Choose UAT or Production first.', 'error');
+                    return;
+                }
                 const payload = {
+                    environment: selectedEnv,
+                    callbackSecret: document.getElementById('cfgCallbackSecret').value,
                     cloud_url: document.getElementById('cloudUrl').value,
                     com: document.getElementById('cfgCom').value,
                     simulation: document.getElementById('cfgSimulation').checked,
@@ -984,6 +1044,7 @@
                         return;
                     }
                     showMessage('Service configuration saved successfully!', 'success');
+                    await loadCurrentConfig();
                 } else {
                     showMessage(`Failed to save: ${data.error || 'Unknown error'}`, 'error');
                 }

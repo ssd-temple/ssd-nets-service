@@ -1,6 +1,6 @@
 {
   "name": "kioskservice",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Kiosk Payment Terminal Service",
   "main": "electron/main.js",
   "bin": "index.js",
