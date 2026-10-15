@@ -63,5 +63,5 @@ typings/
 # Build artifacts
 kioskservice
 
-src/
+/src/
 source/kioskservice.exe
