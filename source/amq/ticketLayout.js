@@ -43,11 +43,11 @@ function registerFonts() {
 }
 
 const WIDTH = 512;           // 80mm thermal printer at ~203dpi, same as the rest of the service
-const BORDER = 3;            // outer frame inset
-const PAD = 12;              // text inset from the frame
+const BORDER = 16;           // side margin: keeps everything clear of the paper edge (no outer frame is drawn)
+const PAD = 4;               // text inset from the divider lines
 const QTY_X = 372;           // left edge of the Qty column
 const AMT_RIGHT = WIDTH - BORDER - PAD; // right edge of the AMT column
-const LOGO_WIDTH_RATIO = 0.62;
+const LOGO_WIDTH_RATIO = 360 / 512; // same logo size as 1.0.6
 
 const LOGO_PATH = path.join(__dirname, '..', 'public', 'assets', 'SSD-Full-Logo-Transparent.png');
 let cachedLogo = null;
@@ -61,6 +61,48 @@ async function loadLogo() {
         console.warn(`[ticketLayout] Could not load logo "${LOGO_PATH}": ${e.message} — ticket renders without it.`);
     }
     return cachedLogo;
+}
+
+
+// Photos need dithering to keep their shading on a 1-bit thermal printer (same
+// Floyd-Steinberg approach ESCPOSBuilder.getImageRaster used in 1.0.6; a plain
+// threshold turns them into faint blobs). Returns a pure black/white canvas that
+// is later drawn 1:1 (integer position, no resampling) onto the ticket.
+function ditherToCanvas(img, width, height) {
+    const c = createCanvas(width, height);
+    const cx = c.getContext('2d');
+    cx.fillStyle = '#FFFFFF';
+    cx.fillRect(0, 0, width, height);
+    cx.drawImage(img, 0, 0, width, height);
+    const data = cx.getImageData(0, 0, width, height);
+    const px = data.data;
+    const grey = new Float32Array(width * height);
+    for (let i = 0; i < width * height; i++) {
+        const a = px[i * 4 + 3];
+        grey[i] = a < 16 ? 255 : 0.299 * px[i * 4] + 0.587 * px[i * 4 + 1] + 0.114 * px[i * 4 + 2];
+    }
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const idx = y * width + x;
+            const old = grey[idx];
+            const val = old < 128 ? 0 : 255;
+            grey[idx] = val;
+            const err = old - val;
+            if (x + 1 < width) grey[idx + 1] += (err * 7) / 16;
+            if (y + 1 < height) {
+                if (x > 0) grey[idx + width - 1] += (err * 3) / 16;
+                grey[idx + width] += (err * 5) / 16;
+                if (x + 1 < width) grey[idx + width + 1] += (err * 1) / 16;
+            }
+        }
+    }
+    for (let i = 0; i < width * height; i++) {
+        const v = grey[i] < 128 ? 0 : 255;
+        px[i * 4] = px[i * 4 + 1] = px[i * 4 + 2] = v;
+        px[i * 4 + 3] = 255;
+    }
+    cx.putImageData(data, 0, 0);
+    return c;
 }
 
 // "CASH, NETS" -> "Cash, Nets"
@@ -140,7 +182,7 @@ async function renderTicketCanvas(receipt) {
         const h = Math.round((logo.height / logo.width) * w);
         add({ type: 'logo', w, h }, h + 4);
     }
-    if (receipt.gstNumber) add({ type: 'text', text: `GST No: ${receipt.gstNumber}`, size: 16, align: 'center' }, lh(16));
+    if (receipt.gstNumber) add({ type: 'text', text: `GST No: ${receipt.gstNumber}`, size: 19, align: 'center' }, lh(19));
 
     if (receipt.isReprint) {
         add({ type: 'text', text: receipt.reprintNumber ? `*** REPRINT #${receipt.reprintNumber} ***` : '*** REPRINT ***', size: 18, bold: true, align: 'center' }, lh(18));
@@ -148,9 +190,9 @@ async function renderTicketCanvas(receipt) {
 
     y += 4;
     const page = receipt.pageNo && receipt.pageTotal ? ` (Page ${receipt.pageNo}/${receipt.pageTotal})` : '';
-    if (receipt.receiptId) add({ type: 'text', text: `Receipt No: ${receipt.receiptId}${page}`, size: 15 }, lh(15));
+    if (receipt.receiptId) add({ type: 'text', text: `Receipt No: ${receipt.receiptId}${page}`, size: 19 }, lh(19));
     const dateTime = receipt.dateTime || receipt.date;
-    if (dateTime) add({ type: 'text', text: `Date & Time: ${dateTime}`, size: 15 }, lh(15));
+    if (dateTime) add({ type: 'text', text: `Date & Time: ${dateTime}`, size: 19 }, lh(19));
     y += 4;
 
     add({ type: 'hline', full: true }, 1);
@@ -175,15 +217,15 @@ async function renderTicketCanvas(receipt) {
 
         // Session date — only when this line carries one.
         if (item.sessionText) {
-            add({ type: 'text', text: `Session Date: ${item.sessionText}`, size: 15, bold: true, x: PAD + BORDER }, lh(15));
+            add({ type: 'text', text: `Session Date: ${item.sessionText}`, size: 17, bold: true, x: PAD + BORDER }, lh(17));
         }
 
         if (item._pictureImage) {
             const sc = Math.min(200 / item._pictureImage.width, 150 / item._pictureImage.height, 1);
-            const w = Math.round(item._pictureImage.width * sc);
-            const h = Math.round(item._pictureImage.height * sc);
+            const w = Math.max(8, Math.floor((item._pictureImage.width * sc) / 8) * 8);
+            const h = Math.max(1, Math.round((item._pictureImage.height * w) / item._pictureImage.width));
             y += 4;
-            add({ type: 'picture', img: item._pictureImage, w, h }, h + 6);
+            add({ type: 'picture', img: ditherToCanvas(item._pictureImage, w, h), w, h }, h + 6);
         }
 
         // Deity — Tamil only, centred and underlined.
@@ -222,7 +264,7 @@ async function renderTicketCanvas(receipt) {
     add({ type: 'footer', payment, total }, lh(20) + 4);
     add({ type: 'hline', full: true }, 1);
 
-    const height = y + BORDER + 10;
+    const height = y + 24;
 
     // ---- Pass 2: draw. ----
     const canvas = createCanvas(WIDTH, height);
@@ -234,8 +276,6 @@ async function renderTicketCanvas(receipt) {
     ctx.textBaseline = 'top';
 
     ctx.lineWidth = 1.5;
-    ctx.strokeRect(BORDER, BORDER, WIDTH - BORDER * 2, height - BORDER * 2);
-    ctx.lineWidth = 1;
 
     const drawText = (op) => {
         ctx.font = font(op.size, op.bold);
@@ -253,16 +293,16 @@ async function renderTicketCanvas(receipt) {
     for (const op of ops) {
         switch (op.type) {
             case 'logo':
-                ctx.drawImage(logo, (WIDTH - op.w) / 2, op.y, op.w, op.h);
+                ctx.drawImage(logo, Math.round((WIDTH - op.w) / 2), op.y, op.w, op.h);
                 break;
             case 'picture':
-                ctx.drawImage(op.img, (WIDTH - op.w) / 2, op.y, op.w, op.h);
+                ctx.drawImage(op.img, Math.round((WIDTH - op.w) / 2), op.y);
                 break;
             case 'text':
                 drawText(op);
                 break;
             case 'hline':
-                ctx.fillRect(BORDER, op.y, WIDTH - BORDER * 2, 1);
+                ctx.fillRect(BORDER, op.y, WIDTH - BORDER * 2, 2);
                 break;
             case 'headerRow':
                 drawText({ type: 'text', text: 'Item', size: 18, bold: true, y: op.y });
