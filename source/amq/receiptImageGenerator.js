@@ -3,6 +3,7 @@ const fs = require('fs');
 const { ensureFontconfigConfigured } = require('../fontSetup');
 const { ensureCanvasAddonsExtracted, ensureFontsExtracted } = require('../nativeAddonSetup');
 const { getFormattedDateTime } = require('./receiptDateTime');
+const { renderTicketCanvas } = require('./ticketLayout');
 
 // Must run before requiring 'canvas' so its DLL dependencies and
 // Fontconfig/Pango config are in place on first init (see
@@ -113,6 +114,21 @@ class ReceiptImageGenerator {
             console.warn(`[receiptImageGenerator] Skipping receipt image — canvas unavailable (${canvasLoadError.message}).`);
             return null;
         }
+        // Preferred path: the exact canvas the thermal printer is sent (new
+        // Item/Qty/AMT layout) — see ticketLayout.js. The legacy drawing below
+        // only runs if that render fails.
+        try {
+            const layoutCanvas = await renderTicketCanvas(receipt);
+            if (layoutCanvas) {
+                const outPath = path.join(IMAGES_DIR, `full_receipt_${Date.now()}.png`);
+                fs.writeFileSync(outPath, layoutCanvas.toBuffer('image/png'));
+                console.log(`[ReceiptImageGenerator] Full receipt saved: ${outPath}`);
+                return outPath;
+            }
+        } catch (e) {
+            console.warn(`[receiptImageGenerator] New layout failed, using legacy preview: ${e.message}`);
+        }
+
         // Logo — loaded (and cached) up front so its real aspect-ratio
         // height is known before sizing the canvas, same asset the ESC/POS
         // path prints (see LOGO_PATH above).

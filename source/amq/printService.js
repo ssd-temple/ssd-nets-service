@@ -5,6 +5,7 @@ const fs = require('fs');
 const ESCPOSBuilder = require('./ESCPOSBuilder');
 const receiptImageGenerator = require('./receiptImageGenerator');
 const ticketImages = require('./ticketImages');
+const { renderTicketCanvas } = require('./ticketLayout');
 const paymentTracker = require('./paymentOutcomes');
 const { ensureScriptsExtracted } = require('../nativeAddonSetup');
 const { getFormattedDateTime } = require('./receiptDateTime');
@@ -343,6 +344,24 @@ class PrintService {
                 ? await ESCPOSBuilder.getLogoRaster(LOGO_PATH, 360)
                 : null;
 
+        // Whole-ticket raster in the new Item/Qty/AMT layout (see ticketLayout.js),
+        // rendered up front for the same reason as the logo: buildReceipt() is
+        // synchronous. Absent (canvas unavailable) -> buildReceipt falls back to
+        // the older text layout. Item pictures are drawn inside this render
+        // (centered, only for items that downloaded one).
+        const receiptList = data.receipts && Array.isArray(data.receipts)
+            ? data.receipts
+            : (data.receiptId && data.items ? [data] : []);
+        const ticketRasters = new Map();
+        for (const r of receiptList) {
+            try {
+                const canvas = await renderTicketCanvas(r);
+                if (canvas) ticketRasters.set(r, ESCPOSBuilder.canvasToRaster(canvas));
+            } catch (e) {
+                logger.warn({ level: 'warn', message: `Ticket layout render failed, using text layout: ${e.message}` });
+            }
+        }
+
         if (typeof data === 'string') {
             // Raw text print
             builder.text(data).newline().feed(2).cut();
@@ -351,10 +370,10 @@ class PrintService {
             builder.text(data.content).newline().feed(2).cut();
         } else if (data.receipts && Array.isArray(data.receipts)) {
             // Handle array of receipts
-            data.receipts.forEach(r => this.buildReceipt(builder, r, logoRaster));
+            data.receipts.forEach(r => this.buildReceipt(builder, r, logoRaster, ticketRasters.get(r)));
         } else if (data.receiptId && data.items) {
             // Handle single receipt object
-            this.buildReceipt(builder, data, logoRaster);
+            this.buildReceipt(builder, data, logoRaster, ticketRasters.get(data));
         } else {
             // Basic default formatter
             this.buildDefaultReceipt(builder, data);
@@ -429,7 +448,13 @@ class PrintService {
      *   of the synchronous per-receipt loop) — null if unavailable, in
      *   which case the ticket just prints without one.
      */
-    buildReceipt(builder, receipt, logoRaster = null) {
+    buildReceipt(builder, receipt, logoRaster = null, ticketRaster = null) {
+        // New layout: the whole ticket is one pre-rendered raster.
+        if (ticketRaster) {
+            builder.align('left').image(ticketRaster).feed(2).cut();
+            return;
+        }
+
         const lineWidth = 42;
         const divider = '-'.repeat(lineWidth);
 

@@ -13,7 +13,18 @@
 // (see its ticket-grouping.js); this only decides how one resolved
 // TicketGroup renders on paper.
 
-const { getFormattedDateTime } = require('./receiptDateTime');
+const { getFormattedDateTime, getReceiptDateTime } = require('./receiptDateTime');
+
+const SESSION_LABEL = { AM: 'Morning', PM: 'Evening' };
+
+// "2026-10-28" + "AM" -> "28.10.2026/Morning". Empty string when the line has
+// no session date, so the ticket simply omits the "Session Date" line.
+function formatSessionText(line) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(line.sessionDate || ''));
+  if (!m) return '';
+  const date = `${m[3]}.${m[2]}.${m[1]}`;
+  return line.session ? `${date}/${SESSION_LABEL[line.session] || line.session}` : date;
+}
 
 /**
  * @param {object} ticketData  { ticketGroups, receipt, temple, customer, splitMode }
@@ -28,11 +39,17 @@ function buildReceiptsFromTicketGroups(ticketData, options = {}) {
 
   const printedAt = getFormattedDateTime();
 
-  return ticketGroups.map((group) => {
+  const dateTime = getReceiptDateTime();
+
+  return ticketGroups.map((group, index) => {
     return {
       receiptId: receipt?.receiptNo || receipt?.bookingNumber || '',
       gstNumber: options.gstNumber || '',
       date: printedAt,
+      // "Date & Time:" header line, and "(Page n/N)" after the receipt number.
+      dateTime,
+      pageNo: index + 1,
+      pageTotal: ticketGroups.length,
       // No templeName/templeTamilName/ticketHeading here on purpose — the
       // logo at the top of the ticket already identifies the temple, and
       // the print-group/deity heading that used to sit above the items is
@@ -70,6 +87,9 @@ function buildReceiptsFromTicketGroups(ticketData, options = {}) {
         // Present only when SSD-Backend decided this offering's picture should print (both "print image"
         // switches on and a picture exists) - see amq/ticketImages.js. Absent/empty = no picture.
         ...(typeof line.imageUrl === 'string' && line.imageUrl.trim() ? { imageUrl: line.imageUrl.trim() } : {}),
+        // "28.10.2026/Morning" — only present when the line has a session
+        // date; otherwise the ticket prints no "Session Date" line for it.
+        ...(formatSessionText(line) ? { sessionText: formatSessionText(line) } : {}),
         quantity: line.quantity,
         total: Number(line.lineTotal || 0).toFixed(2),
         devotees: (line.devotees || []).map((d) => ({ name: d.name, nakshatra: d.nakshatra })),

@@ -35,4 +35,19 @@ function getFormattedDateTime() {
     return `${datePart} ${hour}.${minute}${dayPeriod}`;
 }
 
-module.exports = { getFormattedDateTime, SGT_TIMEZONE };
+// "MM/DD/YYYY hh:mm AM" in Singapore time — the "Date & Time:" line of the ticket header.
+function getReceiptDateTime() {
+    const parts = new Intl.DateTimeFormat('en-US', {
+        month: '2-digit',
+        day: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+        timeZone: SGT_TIMEZONE
+    }).formatToParts(new Date());
+    const get = (type) => parts.find(p => p.type === type)?.value ?? '';
+    return `${get('month')}/${get('day')}/${get('year')} ${get('hour')}:${get('minute')} ${get('dayPeriod').toUpperCase()}`;
+}
+
+module.exports = { getFormattedDateTime, getReceiptDateTime, SGT_TIMEZONE };

@@ -99,8 +99,8 @@ try { ensureFontRegistered(); } catch (e) { console.warn('[ESCPOSBuilder] Font r
  * textImage() and the new image()/getLogoRaster() below both need, pulled
  * out once so neither has to duplicate the bit-packing math.
  */
-function canvasToRasterCommand(ctx, width, height) {
-    const imageData = ctx.getImageData(0, 0, width, height);
+function canvasToRasterCommand(ctx, width, height, yOffset = 0) {
+    const imageData = ctx.getImageData(0, yOffset, width, height);
     const pixels = imageData.data; // RGBA flat array
 
     const widthBytes = Math.ceil(width / 8);
@@ -442,6 +442,21 @@ class ESCPOSBuilder {
     image(rasterCommand) {
         if (!rasterCommand) return this;
         return this.add(rasterCommand);
+    }
+
+    /**
+     * Rasterises a whole pre-rendered canvas (see ticketLayout.js) into ESC/POS
+     * commands, in bands so a long ticket never exceeds a printer's raster
+     * height limit. Synchronous and cheap to call from buildReceipt().
+     */
+    static canvasToRaster(canvas, bandHeight = 256) {
+        const ctx = canvas.getContext('2d');
+        const parts = [];
+        for (let top = 0; top < canvas.height; top += bandHeight) {
+            const h = Math.min(bandHeight, canvas.height - top);
+            parts.push(canvasToRasterCommand(ctx, canvas.width, h, top));
+        }
+        return Buffer.concat(parts);
     }
 
     // Simple table implementation
