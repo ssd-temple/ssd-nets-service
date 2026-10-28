@@ -302,7 +302,8 @@ async function renderTicketCanvas(receipt) {
     add({ type: 'footer', payment, total }, lh(20) + 4);
     add({ type: 'hline', full: true }, 1);
 
-    const height = y + 24;
+    // Blank space under the last line so the cutter does not slice right under the content.
+    const height = y + 70;
 
     // ---- Pass 2: draw. ----
     const canvas = createCanvas(WIDTH, height);

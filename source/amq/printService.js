@@ -451,7 +451,7 @@ class PrintService {
     buildReceipt(builder, receipt, logoRaster = null, ticketRaster = null) {
         // New layout: the whole ticket is one pre-rendered raster.
         if (ticketRaster) {
-            builder.align('left').image(ticketRaster).feed(2).cut();
+            builder.align('left').image(ticketRaster).feed(4).cut();
             return;
         }
 
