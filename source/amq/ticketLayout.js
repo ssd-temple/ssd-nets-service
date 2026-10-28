@@ -124,6 +124,9 @@ function ditherToCanvas(img, width, height) {
 
 // Logo: binarise with a higher threshold than the printer's own (128) so the
 // thin strokes and light greys of the emblem and Tamil lettering stay solid.
+// Lower threshold = thinner strokes, so the emblem's fine lines stay separate
+// instead of filling in to a solid dark blob on the printer.
+const LOGO_THRESHOLD = 110;
 function binarizeLogo(img, width, height) {
     const c = createCanvas(width, height);
     const cx = c.getContext('2d');
@@ -135,7 +138,7 @@ function binarizeLogo(img, width, height) {
     const px = data.data;
     for (let i = 0; i < width * height; i++) {
         const g = 0.299 * px[i * 4] + 0.587 * px[i * 4 + 1] + 0.114 * px[i * 4 + 2];
-        const v = g < 175 ? 0 : 255;
+        const v = g < LOGO_THRESHOLD ? 0 : 255;
         px[i * 4] = px[i * 4 + 1] = px[i * 4 + 2] = v;
         px[i * 4 + 3] = 255;
     }
@@ -156,6 +159,20 @@ function devoteesOf(item) {
     }
     return (item.devotees || []).map((d) => ({ name: d.name, star: d.nakshatra }));
 }
+
+// Same name + star entered more than once prints once.
+function uniqueDevotees(item) {
+    const seen = new Set();
+    return devoteesOf(item)
+        .filter((d) => (d.name || '').trim() || (d.star || '').trim())
+        .filter((d) => {
+            const key = `${(d.name || '').trim().toLowerCase()}|${(d.star || '').trim().toLowerCase()}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+}
+const devoteeSignature = (list) => list.map((d) => `${(d.name || '').trim()}|${(d.star || '').trim()}`).join('\n');
 
 function isUsable(text) {
     return typeof text === 'string' && text.trim() !== '' && text !== 'null';
@@ -239,6 +256,7 @@ async function renderTicketCanvas(receipt) {
 
     const nameMaxWidth = QTY_X - PAD - BORDER - 10;
     let computedTotal = 0;
+    const devoteeLists = items.map(uniqueDevotees);
     items.forEach((item, idx) => {
         y += 6;
         const title = isUsable(item.tamilName) ? item.tamilName : (item.name || '');
@@ -259,7 +277,7 @@ async function renderTicketCanvas(receipt) {
         }
 
         if (item._pictureImage) {
-            const sc = Math.min(300 / item._pictureImage.width, 220 / item._pictureImage.height, 2);
+            const sc = Math.min(232 / item._pictureImage.width, 168 / item._pictureImage.height, 2);
             const w = Math.max(8, Math.floor((item._pictureImage.width * sc) / 8) * 8);
             const h = Math.max(1, Math.round((item._pictureImage.height * w) / item._pictureImage.width));
             y += 4;
@@ -272,9 +290,12 @@ async function renderTicketCanvas(receipt) {
             add({ type: 'text', text: item.deityTamilName, size: 26, align: 'center', underline: true }, lh(26) + 2);
         }
 
-        // Devotees in a bordered box.
-        const devotees = devoteesOf(item).filter((d) => (d.name || '').trim() || (d.star || '').trim());
-        if (devotees.length > 0) {
+        // Devotees in a bordered box — printed once for a run of consecutive
+        // items that share the same devotee list (after the last of the run).
+        const devotees = devoteeLists[idx];
+        const nextSame = idx + 1 < items.length && devoteeSignature(devoteeLists[idx + 1]) === devoteeSignature(devotees);
+        const showBox = devotees.length > 0 && !nextSame;
+        if (showBox) {
             y += 6;
             const boxX = BORDER + 8;
             const boxW = WIDTH - (BORDER + 8) * 2;
@@ -292,7 +313,9 @@ async function renderTicketCanvas(receipt) {
         }
 
         y += 6;
-        add({ type: 'hline', full: true }, 1);
+        // Solid line between sections; dashed between items that share one devotee box.
+        add({ type: devotees.length > 0 && nextSame ? 'dash' : 'hline', full: true }, 1);
+        y += 4;
     });
 
     // Footer: payment mode (left) + total (right).
@@ -346,6 +369,9 @@ async function renderTicketCanvas(receipt) {
                 break;
             case 'hline':
                 ctx.fillRect(BORDER, op.y, WIDTH - BORDER * 2, 2);
+                break;
+            case 'dash':
+                for (let x = BORDER; x < WIDTH - BORDER; x += 12) ctx.fillRect(x, op.y, 6, 2);
                 break;
             case 'headerRow':
                 drawText({ type: 'text', text: 'Item', size: 18, bold: true, y: op.y });
