@@ -73,31 +73,69 @@ function ditherToCanvas(img, width, height) {
     const cx = c.getContext('2d');
     cx.fillStyle = '#FFFFFF';
     cx.fillRect(0, 0, width, height);
+    cx.imageSmoothingQuality = 'high';
     cx.drawImage(img, 0, 0, width, height);
     const data = cx.getImageData(0, 0, width, height);
     const px = data.data;
-    const grey = new Float32Array(width * height);
-    for (let i = 0; i < width * height; i++) {
+    const n = width * height;
+    const grey = new Float32Array(n);
+    let lo = 255, hi = 0;
+    for (let i = 0; i < n; i++) {
         const a = px[i * 4 + 3];
-        grey[i] = a < 16 ? 255 : 0.299 * px[i * 4] + 0.587 * px[i * 4 + 1] + 0.114 * px[i * 4 + 2];
+        const g = a < 16 ? 255 : 0.299 * px[i * 4] + 0.587 * px[i * 4 + 1] + 0.114 * px[i * 4 + 2];
+        grey[i] = g;
+        if (g < lo) lo = g;
+        if (g > hi) hi = g;
     }
+    // Thermal paper darkens dots (dot gain), so a plain dither comes out muddy.
+    // Stretch the contrast to the full range, then lighten the midtones a bit.
+    const span = Math.max(1, hi - lo);
+    for (let i = 0; i < n; i++) {
+        const v = (grey[i] - lo) / span;
+        grey[i] = 255 * Math.pow(v, 1.15);
+    }
+    // Atkinson dithering: diffuses only 3/4 of the error, which keeps highlights
+    // white and edges crisp (better than Floyd-Steinberg on 1-bit thermal output).
     for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
             const idx = y * width + x;
             const old = grey[idx];
             const val = old < 128 ? 0 : 255;
             grey[idx] = val;
-            const err = old - val;
-            if (x + 1 < width) grey[idx + 1] += (err * 7) / 16;
+            const e = (old - val) / 8;
+            if (x + 1 < width) grey[idx + 1] += e;
+            if (x + 2 < width) grey[idx + 2] += e;
             if (y + 1 < height) {
-                if (x > 0) grey[idx + width - 1] += (err * 3) / 16;
-                grey[idx + width] += (err * 5) / 16;
-                if (x + 1 < width) grey[idx + width + 1] += (err * 1) / 16;
+                if (x > 0) grey[idx + width - 1] += e;
+                grey[idx + width] += e;
+                if (x + 1 < width) grey[idx + width + 1] += e;
             }
+            if (y + 2 < height) grey[idx + 2 * width] += e;
         }
     }
-    for (let i = 0; i < width * height; i++) {
+    for (let i = 0; i < n; i++) {
         const v = grey[i] < 128 ? 0 : 255;
+        px[i * 4] = px[i * 4 + 1] = px[i * 4 + 2] = v;
+        px[i * 4 + 3] = 255;
+    }
+    cx.putImageData(data, 0, 0);
+    return c;
+}
+
+// Logo: binarise with a higher threshold than the printer's own (128) so the
+// thin strokes and light greys of the emblem and Tamil lettering stay solid.
+function binarizeLogo(img, width, height) {
+    const c = createCanvas(width, height);
+    const cx = c.getContext('2d');
+    cx.fillStyle = '#FFFFFF';
+    cx.fillRect(0, 0, width, height);
+    cx.imageSmoothingQuality = 'high';
+    cx.drawImage(img, 0, 0, width, height);
+    const data = cx.getImageData(0, 0, width, height);
+    const px = data.data;
+    for (let i = 0; i < width * height; i++) {
+        const g = 0.299 * px[i * 4] + 0.587 * px[i * 4 + 1] + 0.114 * px[i * 4 + 2];
+        const v = g < 175 ? 0 : 255;
         px[i * 4] = px[i * 4 + 1] = px[i * 4 + 2] = v;
         px[i * 4 + 3] = 255;
     }
@@ -180,7 +218,7 @@ async function renderTicketCanvas(receipt) {
     if (logo) {
         const w = Math.round(WIDTH * LOGO_WIDTH_RATIO);
         const h = Math.round((logo.height / logo.width) * w);
-        add({ type: 'logo', w, h }, h + 4);
+        add({ type: 'logo', w, h, img: binarizeLogo(logo, w, h) }, h + 4);
     }
     if (receipt.gstNumber) add({ type: 'text', text: `GST No: ${receipt.gstNumber}`, size: 19, align: 'center' }, lh(19));
 
@@ -221,7 +259,7 @@ async function renderTicketCanvas(receipt) {
         }
 
         if (item._pictureImage) {
-            const sc = Math.min(200 / item._pictureImage.width, 150 / item._pictureImage.height, 1);
+            const sc = Math.min(300 / item._pictureImage.width, 220 / item._pictureImage.height, 2);
             const w = Math.max(8, Math.floor((item._pictureImage.width * sc) / 8) * 8);
             const h = Math.max(1, Math.round((item._pictureImage.height * w) / item._pictureImage.width));
             y += 4;
@@ -293,7 +331,7 @@ async function renderTicketCanvas(receipt) {
     for (const op of ops) {
         switch (op.type) {
             case 'logo':
-                ctx.drawImage(logo, Math.round((WIDTH - op.w) / 2), op.y, op.w, op.h);
+                ctx.drawImage(op.img, Math.round((WIDTH - op.w) / 2), op.y);
                 break;
             case 'picture':
                 ctx.drawImage(op.img, Math.round((WIDTH - op.w) / 2), op.y);

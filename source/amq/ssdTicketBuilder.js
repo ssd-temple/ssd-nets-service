@@ -17,13 +17,13 @@ const { getFormattedDateTime, getReceiptDateTime } = require('./receiptDateTime'
 
 const SESSION_LABEL = { AM: 'Morning', PM: 'Evening' };
 
-// "2026-10-28" + "AM" -> "28.10.2026/Morning". Empty string when the line has
+// "2026-10-28" + "AM" -> "28/10/2026 (Morning)". Empty string when the line has
 // no session date, so the ticket simply omits the "Session Date" line.
 function formatSessionText(line) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(line.sessionDate || ''));
   if (!m) return '';
-  const date = `${m[3]}.${m[2]}.${m[1]}`;
-  return line.session ? `${date}/${SESSION_LABEL[line.session] || line.session}` : date;
+  const date = `${m[3]}/${m[2]}/${m[1]}`;
+  return line.session ? `${date} (${SESSION_LABEL[line.session] || line.session})` : date;
 }
 
 /**
@@ -87,7 +87,7 @@ function buildReceiptsFromTicketGroups(ticketData, options = {}) {
         // Present only when SSD-Backend decided this offering's picture should print (both "print image"
         // switches on and a picture exists) - see amq/ticketImages.js. Absent/empty = no picture.
         ...(typeof line.imageUrl === 'string' && line.imageUrl.trim() ? { imageUrl: line.imageUrl.trim() } : {}),
-        // "28.10.2026/Morning" — only present when the line has a session
+        // "28/10/2026 (Morning)" — only present when the line has a session
         // date; otherwise the ticket prints no "Session Date" line for it.
         ...(formatSessionText(line) ? { sessionText: formatSessionText(line) } : {}),
         quantity: line.quantity,
