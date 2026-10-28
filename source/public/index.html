@@ -731,7 +731,11 @@
             const progressLabel = document.getElementById('updateProgressLabel');
 
             window.electronAPI.onUpdateProgress((data) => {
-                if (data.phase === 'downloading') {
+                if (data.phase === 'connecting') {
+                    progressWrap.style.display = 'flex';
+                    progressTrack.classList.add('indeterminate');
+                    progressLabel.textContent = 'Contacting update server…';
+                } else if (data.phase === 'downloading') {
                     progressWrap.style.display = 'flex';
                     progressTrack.classList.remove('indeterminate');
                     const pct = typeof data.percent === 'number' ? data.percent : 0;

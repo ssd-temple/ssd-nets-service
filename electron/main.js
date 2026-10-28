@@ -47,7 +47,7 @@ function logUpdateFlow(message) {
 // before Chromium ever recognizes it as a download), the promise otherwise
 // hangs forever with the button stuck on "Downloading...", no error, and
 // nothing to diagnose. Bound it so it fails loudly and logs why instead.
-const WILL_DOWNLOAD_TIMEOUT_MS = 30000;
+const WILL_DOWNLOAD_TIMEOUT_MS = 90000;
 
 // The download/install flow spans several async DownloadItem events, which
 // can still fire after this window's webContents is destroyed — e.g. the OS
@@ -71,6 +71,8 @@ function safeSend(wc, channel, payload) {
 function downloadAndInstallUpdate(webContents, installer) {
   return new Promise((resolve, reject) => {
     logUpdateFlow(`downloadAndInstallUpdate called. installer=${JSON.stringify(installer)}`);
+    // Show the progress bar straight away; the real download events only start once GitHub answers.
+    safeSend(webContents, 'update-download-progress', { phase: 'connecting' });
 
     let downloadUrl;
     try {

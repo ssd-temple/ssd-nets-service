@@ -40,6 +40,7 @@ const crypto = require("crypto");
 const path = require("path");
 const http = require("http");
 const https = require("https");
+const dns = require("dns");
 const axios = require("axios");
 const { execFile } = require("child_process");
 const servicePackage = require("./package.json");
@@ -1305,6 +1306,17 @@ app.get('/api/update/check', async (req, res) => {
   }
 });
 
+// IPs that recently failed to connect while downloading an update (see the
+// /api/update/download proxy). Entries expire so a recovered IP is used again.
+const badUpdateIps = new Map();
+function markBadUpdateIp(ip) { badUpdateIps.set(ip, Date.now() + 10 * 60 * 1000); }
+function isBadUpdateIp(ip) {
+  const until = badUpdateIps.get(ip);
+  if (!until) return false;
+  if (until < Date.now()) { badUpdateIps.delete(ip); return false; }
+  return true;
+}
+
 // Proxies a release asset download through this service using the
 // configured GitHub token, so private-repo installer assets can be fetched
 // without ever exposing the token to the Electron renderer.
@@ -1330,13 +1342,32 @@ app.get('/api/update/download/:assetId', async (req, res) => {
     const assetUrl = `https://api.github.com/repos/${owner}/${repo}/releases/assets/${assetId}`;
     const authHeaders = getGithubAuthHeaders(config);
 
-    // GitHub redirects the asset to its CDN host; on some networks that connect
-    // intermittently times out (ETIMEDOUT / ECONNRESET). Retry a few times on a
-    // network-level failure (no HTTP response) before giving up, instead of
-    // failing the whole update on the first hiccup.
+    // GitHub redirects the asset to a CDN host that has several IPs. On some
+    // networks ONE of them is blocked (seen: 185.199.109.133 times out while the
+    // other three work). Node 18 only tries the first address DNS returns, so a
+    // plain retry hits the same dead IP again. Resolve all addresses ourselves,
+    // skip IPs that already failed, rotate per attempt, and give up on a silent
+    // connection after 10s so the next attempt (a different IP) starts quickly.
     let assetResponse;
-    const maxAttempts = 3;
+    const maxAttempts = 5;
     for (let attempt = 1; ; attempt++) {
+      let pickedAddress = null;
+      const lookup = (hostname, options, callback) => {
+        if (typeof options === 'function') { callback = options; options = {}; }
+        dns.lookup(hostname, { ...options, all: true }, (err, addresses) => {
+          if (err) return callback(err);
+          const v4 = addresses.filter((a) => a.family === 4);
+          const pool = v4.length ? v4 : addresses;
+          const usable = pool.filter((a) => !isBadUpdateIp(a.address));
+          const list = usable.length ? usable : pool;
+          const chosen = list[(attempt - 1) % list.length];
+          pickedAddress = chosen.address;
+          if (options && options.all) return callback(null, [chosen]);
+          callback(null, chosen.address, chosen.family);
+        });
+      };
+      const controller = new AbortController();
+      const connectTimer = setTimeout(() => controller.abort(), 10000);
       try {
         assetResponse = await axios.get(assetUrl, {
           headers: {
@@ -1345,13 +1376,16 @@ app.get('/api/update/download/:assetId', async (req, res) => {
             ...authHeaders,
           },
           responseType: 'stream',
-          timeout: 60000,
+          httpsAgent: new https.Agent({ lookup }),
+          signal: controller.signal,
         });
+        clearTimeout(connectTimer);
         break;
       } catch (err) {
+        clearTimeout(connectTimer);
         if (err.response || attempt >= maxAttempts) throw err;
-        logger.warn({ level: 'warn', message: `Update asset download attempt ${attempt}/${maxAttempts} failed (${err.message}); retrying.` });
-        await new Promise((resolve) => setTimeout(resolve, 1500 * attempt));
+        if (pickedAddress) markBadUpdateIp(pickedAddress);
+        logger.warn({ level: 'warn', message: `Update asset download attempt ${attempt}/${maxAttempts} failed via ${pickedAddress || 'unknown IP'} (${err.code || err.message}); trying another address.` });
       }
     }
 
