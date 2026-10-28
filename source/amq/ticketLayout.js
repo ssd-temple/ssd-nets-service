@@ -247,8 +247,8 @@ async function renderTicketCanvas(receipt) {
         lines.forEach((line, i) => {
             add({ type: 'text', text: line, size: 26, x: PAD + BORDER }, lh(26));
             if (i === 0) {
-                ops.push({ type: 'text', text: String(item.quantity ?? ''), size: 18, x: QTY_X, y: rowY + 6 });
-                ops.push({ type: 'text', text: Number(item.total || 0).toFixed(2), size: 18, align: 'right', y: rowY + 6 });
+                ops.push({ type: 'text', text: String(item.quantity ?? ''), size: 23, x: QTY_X, y: rowY + 4 });
+                ops.push({ type: 'text', text: Number(item.total || 0).toFixed(2), size: 23, align: 'right', y: rowY + 4 });
             }
         });
         computedTotal += Number(item.total || 0);
@@ -299,7 +299,11 @@ async function renderTicketCanvas(receipt) {
     const total = typeof receipt.total === 'number' ? receipt.total : computedTotal;
     const payment = receipt.payment && receipt.payment.method ? titleCase(receipt.payment.method) : '';
     y += 4;
-    add({ type: 'footer', payment, total }, lh(20) + 4);
+    // Payment mode and total share one line; when both together are too wide
+    // (e.g. "Cash, Nets" with a large total) the payment mode gets its own line.
+    const totalLabel = `Total (GST Inclusive) : S$ ${Number(total).toFixed(2)}`;
+    const stacked = payment && textWidth(payment, 25, true) + textWidth(totalLabel, 25, true) + 16 > WIDTH - (BORDER + PAD) * 2;
+    add({ type: 'footer', payment, total, stacked }, lh(25) * (stacked ? 2 : 1) + 4);
     add({ type: 'hline', full: true }, 1);
 
     // Blank space under the last line so the cutter does not slice right under the content.
@@ -356,9 +360,9 @@ async function renderTicketCanvas(receipt) {
                 break;
             }
             case 'footer': {
-                drawText({ type: 'text', text: op.payment, size: 20, bold: true, y: op.y });
+                drawText({ type: 'text', text: op.payment, size: 25, bold: true, y: op.y });
                 const label = `Total (GST Inclusive) : S$ ${Number(op.total).toFixed(2)}`;
-                drawText({ type: 'text', text: label, size: 20, bold: true, align: 'right', y: op.y });
+                drawText({ type: 'text', text: label, size: 25, bold: true, align: 'right', y: op.stacked ? op.y + lh(25) : op.y });
                 break;
             }
             default:
