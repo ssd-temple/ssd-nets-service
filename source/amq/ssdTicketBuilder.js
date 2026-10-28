@@ -26,6 +26,32 @@ function formatSessionText(line) {
   return line.session ? `${date} (${SESSION_LABEL[line.session] || line.session})` : date;
 }
 
+// One booking line fanned out over several deities arrives as one ticket line
+// per deity (each with a share of the qty/amount). Same service + session +
+// devotees = one printed row: qty/amount summed back, deities listed under it.
+function mergeSameService(items) {
+  const merged = [];
+  const byKey = new Map();
+  for (const item of items) {
+    const key = JSON.stringify([item.name, item.sessionText || '', item.imageUrl || '', item.devotees]);
+    const existing = byKey.get(key);
+    if (!existing) {
+      const first = { ...item, deityTamilNames: item.deityTamilName ? [item.deityTamilName] : [], _cents: Math.round(Number(item.total) * 100) };
+      byKey.set(key, first);
+      merged.push(first);
+      continue;
+    }
+    existing.quantity = Number(existing.quantity || 0) + Number(item.quantity || 0);
+    existing._cents += Math.round(Number(item.total) * 100);
+    if (item.deityTamilName && !existing.deityTamilNames.includes(item.deityTamilName)) existing.deityTamilNames.push(item.deityTamilName);
+  }
+  return merged.map(({ _cents, deityTamilNames, ...rest }) => ({
+    ...rest,
+    ...(deityTamilNames.length > 1 ? { deityTamilNames } : {}),
+    total: (_cents / 100).toFixed(2),
+  }));
+}
+
 /**
  * @param {object} ticketData  { ticketGroups, receipt, temple, customer, splitMode }
  * @param {{ isReprint?: boolean, reprintNumber?: number, paymentMethod?: string, gstNumber?: string }} [options]
@@ -74,7 +100,7 @@ function buildReceiptsFromTicketGroups(ticketData, options = {}) {
       // (a line total split unevenly across several deities) can't ever
       // print a "Total" that disagrees with the line amounts above it.
       total: typeof group.total === 'number' ? group.total : null,
-      items: (group.lines || []).map((line) => ({
+      items: mergeSameService((group.lines || []).map((line) => ({
         name: line.name,
         tamilName: line.tamilName || '',
         // Kept separate from `name` (previously concatenated into one
@@ -93,7 +119,7 @@ function buildReceiptsFromTicketGroups(ticketData, options = {}) {
         quantity: line.quantity,
         total: Number(line.lineTotal || 0).toFixed(2),
         devotees: (line.devotees || []).map((d) => ({ name: d.name, nakshatra: d.nakshatra })),
-      })),
+      }))),
       payment: { method: options.paymentMethod || 'NETS' },
     };
   });

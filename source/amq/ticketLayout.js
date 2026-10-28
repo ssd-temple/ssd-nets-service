@@ -284,11 +284,14 @@ async function renderTicketCanvas(receipt) {
             add({ type: 'picture', img: ditherToCanvas(item._pictureImage, w, h), w, h }, h + 6);
         }
 
-        // Deity — Tamil only, centred and underlined.
-        if (isUsable(item.deityTamilName)) {
-            y += 4;
-            add({ type: 'text', text: item.deityTamilName, size: 26, align: 'center', underline: true }, lh(26) + 2);
-        }
+        // Deities — Tamil only, centred and underlined, one per line.
+        const deityNames = Array.isArray(item.deityTamilNames) && item.deityTamilNames.length > 0
+            ? item.deityTamilNames
+            : [item.deityTamilName];
+        deityNames.filter(isUsable).forEach((name, i) => {
+            if (i === 0) y += 4;
+            add({ type: 'text', text: name, size: 26, align: 'center', underline: true }, lh(26) + 2);
+        });
 
         // Devotees in a bordered box — printed once for a run of consecutive
         // items that share the same devotee list (after the last of the run).
