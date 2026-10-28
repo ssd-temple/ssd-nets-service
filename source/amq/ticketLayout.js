@@ -42,10 +42,10 @@ function registerFonts() {
     fontsRegistered = true;
 }
 
-const WIDTH = 512;           // 80mm thermal printer at ~203dpi, same as the rest of the service
+const WIDTH = 544;           // wider than the old 512: the printer has spare dots on the right, so the ticket uses the full paper width
 const BORDER = 16;           // side margin: keeps everything clear of the paper edge (no outer frame is drawn)
 const PAD = 4;               // text inset from the divider lines
-const QTY_X = 372;           // left edge of the Qty column
+const QTY_X = 404;           // left edge of the Qty column
 const AMT_RIGHT = WIDTH - BORDER - PAD; // right edge of the AMT column
 const LOGO_WIDTH_RATIO = 360 / 512; // same logo size as 1.0.6
 
@@ -227,7 +227,7 @@ async function renderTicketCanvas(receipt) {
     // ---- Pass 1: lay everything out as a list of draw ops with a running y,
     // so the canvas can be created at its exact final height. ----
     const ops = [];
-    let y = BORDER + 8;
+    let y = 6;
     const lh = (size) => Math.ceil(size * 1.4);
     const add = (op, height) => { ops.push({ ...op, y }); y += height; };
 
@@ -333,7 +333,7 @@ async function renderTicketCanvas(receipt) {
     add({ type: 'hline', full: true }, 1);
 
     // Blank space under the last line so the cutter does not slice right under the content.
-    const height = y + 70;
+    const height = y + 44;
 
     // ---- Pass 2: draw. ----
     const canvas = createCanvas(WIDTH, height);
