@@ -49,8 +49,11 @@ OutputBaseFilename=SSD_EXE_{#MyAppVersion}_Setup
 Compression=lzma2
 SolidCompression=yes
 ; Uses Windows' native Restart Manager to detect/close a running instance
-; before copying files — no cmd.exe/taskkill involved.
-CloseApplications=yes
+; before copying files — no cmd.exe/taskkill involved. "force" (not "yes"):
+; the app's background kioskservice.exe has no window to ask to close, so a
+; plain "yes" left it running and a silent in-app update aborted with exit
+; code 5 ("files in use"). "force" makes Restart Manager terminate it.
+CloseApplications=force
 RestartApplications=no
 SetupIconFile=..\assets\app-icon.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}

@@ -123,6 +123,22 @@ function downloadAndInstallUpdate(webContents, installer) {
       clearTimeout(willDownloadTimer);
       session.defaultSession.removeListener('will-download', onWillDownload);
       logUpdateFlow(`will-download fired. filename=${item.getFilename()} totalBytes=${item.getTotalBytes()} mimeType=${item.getMimeType()}`);
+
+      // When the local download proxy could not fetch the installer from
+      // GitHub (e.g. a network timeout) it answers with a small JSON error body,
+      // which Chromium still treats as a "download" and would offer to save as
+      // "<assetId>.json". Cancel that here and report a real error instead.
+      const mime = String(item.getMimeType() || '').toLowerCase();
+      if (/json|html|text\//.test(mime) || !/\.(exe|msi)$/i.test(item.getFilename())) {
+        item.cancel();
+        settled = true;
+        logUpdateFlow(`Rejected non-installer response (mimeType=${mime}, filename=${item.getFilename()}). The proxy could not fetch the installer from GitHub.`);
+        const message = 'The update server could not download the installer from GitHub. Check the internet connection on this PC and try again.';
+        safeSend(webContents, 'update-download-progress', { phase: 'error', message });
+        reject(new Error(message));
+        return;
+      }
+
       item.setSavePath(targetPath);
 
       let loggedFirstProgress = false;
@@ -270,13 +286,30 @@ function installSilentlyAndRelaunch(installerPath) {
   // failure here previously left the app just... not reappearing, with no
   // way to tell why.
   const logPath = path.join(app.getPath('temp'), `NETS-updater-log-${Date.now()}.txt`);
+  const q = (v) => `"${v}"`;
   const helperScript = [
     '@echo off',
     `echo [%date% %time%] Updater started. installDir=${installDir} > "${logPath}"`,
     'timeout /t 4 /nobreak >nul',
+    // The background service (kioskservice.exe) can outlive the app for a
+    // moment and keeps files locked, which made the silent installer abort
+    // with exit code 5 ("files in use"). Make sure it is gone first.
+    'taskkill /f /im kioskservice.exe >nul 2>&1',
+    'timeout /t 2 /nobreak >nul',
     `echo [%date% %time%] Running installer: ${installerPath} >> "${logPath}"`,
-    `"${installerPath}" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR="${installDir}"`,
-    `echo [%date% %time%] Installer exit code: %errorlevel% >> "${logPath}"`,
+    `${q(installerPath)} /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR=${q(installDir)}`,
+    'set RC=%errorlevel%',
+    `echo [%date% %time%] Installer exit code: %RC% >> "${logPath}"`,
+    'if "%RC%"=="0" goto relaunch',
+    // One automatic retry after force-closing anything still holding files.
+    `echo [%date% %time%] Installer failed - closing leftover processes and retrying once. >> "${logPath}"`,
+    'taskkill /f /im kioskservice.exe >nul 2>&1',
+    `taskkill /f /im ${q(path.basename(relaunchExePath))} >nul 2>&1`,
+    'timeout /t 5 /nobreak >nul',
+    `${q(installerPath)} /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR=${q(installDir)}`,
+    'set RC=%errorlevel%',
+    `echo [%date% %time%] Installer exit code (retry): %RC% >> "${logPath}"`,
+    ':relaunch',
     `if exist "${relaunchExePath}" (`,
     `  echo [%date% %time%] Relaunching: ${relaunchExePath} >> "${logPath}"`,
     `  start "" "${relaunchExePath}"`,
@@ -300,7 +333,18 @@ function installSilentlyAndRelaunch(installerPath) {
   setTimeout(() => app.quit(), 200);
 }
 
-ipcMain.handle('install-update', (event, installer) => downloadAndInstallUpdate(event.sender, installer));
+// Clicking Install repeatedly used to stack several downloads (and several
+// will-download listeners) on top of each other.
+let updateInFlight = false;
+ipcMain.handle('install-update', async (event, installer) => {
+  if (updateInFlight) throw new Error('An update download is already in progress.');
+  updateInFlight = true;
+  try {
+    return await downloadAndInstallUpdate(event.sender, installer);
+  } finally {
+    updateInFlight = false;
+  }
+});
 
 // A plain location.reload() can still serve stale cached assets from
 // Chromium's HTTP cache. reloadIgnoringCache() is the actual "hard reload"

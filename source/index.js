@@ -1330,15 +1330,30 @@ app.get('/api/update/download/:assetId', async (req, res) => {
     const assetUrl = `https://api.github.com/repos/${owner}/${repo}/releases/assets/${assetId}`;
     const authHeaders = getGithubAuthHeaders(config);
 
-    const assetResponse = await axios.get(assetUrl, {
-      headers: {
-        'Accept': 'application/octet-stream',
-        'User-Agent': 'NETS-KioskService',
-        ...authHeaders,
-      },
-      responseType: 'stream',
-      timeout: 60000,
-    });
+    // GitHub redirects the asset to its CDN host; on some networks that connect
+    // intermittently times out (ETIMEDOUT / ECONNRESET). Retry a few times on a
+    // network-level failure (no HTTP response) before giving up, instead of
+    // failing the whole update on the first hiccup.
+    let assetResponse;
+    const maxAttempts = 3;
+    for (let attempt = 1; ; attempt++) {
+      try {
+        assetResponse = await axios.get(assetUrl, {
+          headers: {
+            'Accept': 'application/octet-stream',
+            'User-Agent': 'NETS-KioskService',
+            ...authHeaders,
+          },
+          responseType: 'stream',
+          timeout: 60000,
+        });
+        break;
+      } catch (err) {
+        if (err.response || attempt >= maxAttempts) throw err;
+        logger.warn({ level: 'warn', message: `Update asset download attempt ${attempt}/${maxAttempts} failed (${err.message}); retrying.` });
+        await new Promise((resolve) => setTimeout(resolve, 1500 * attempt));
+      }
+    }
 
     // Content-Disposition matters here beyond cosmetics: without it,
     // Electron's download manager has nothing but the numeric asset-id URL
