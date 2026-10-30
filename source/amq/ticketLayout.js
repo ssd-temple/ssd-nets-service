@@ -248,6 +248,11 @@ async function renderTicketCanvas(receipt) {
     if (receipt.receiptId) add({ type: 'text', text: `Receipt No: ${receipt.receiptId}${page}`, size: 19 }, lh(19));
     const dateTime = receipt.dateTime || receipt.date;
     if (dateTime) add({ type: 'text', text: `Date & Time: ${dateTime}`, size: 19 }, lh(19));
+    // Print Group name (English), same size/weight as the footer "Total (GST Inclusive)" line.
+    if (isUsable(receipt.printGroupName)) {
+        wrap(receipt.printGroupName.trim(), 25, true, WIDTH - (BORDER + PAD) * 2)
+            .forEach((line) => add({ type: 'text', text: line, size: 25, bold: true }, lh(25)));
+    }
     y += 4;
 
     add({ type: 'hline', full: true }, 1);

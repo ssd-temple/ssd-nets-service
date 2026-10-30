@@ -74,6 +74,9 @@ function buildReceiptsFromTicketGroups(ticketData, options = {}) {
       date: printedAt,
       // "Date & Time:" header line, and "(Page n/N)" after the receipt number.
       dateTime,
+      // English heading printed under the Date & Time line: the Print Group name, or the deity name
+      // when the split setting is Deity Wise (splitType "DEITY").
+      printGroupName: String((group.splitType === 'DEITY' ? group.deityName : group.printGroupName) || group.printGroupName || group.deityName || '').trim(),
       pageNo: index + 1,
       pageTotal: ticketGroups.length,
       // No templeName/templeTamilName/ticketHeading here on purpose — the
