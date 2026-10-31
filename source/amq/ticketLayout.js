@@ -227,7 +227,7 @@ async function renderTicketCanvas(receipt) {
     // ---- Pass 1: lay everything out as a list of draw ops with a running y,
     // so the canvas can be created at its exact final height. ----
     const ops = [];
-    let y = 6;
+    let y = 2;
     const lh = (size) => Math.ceil(size * 1.4);
     const add = (op, height) => { ops.push({ ...op, y }); y += height; };
 
@@ -313,7 +313,7 @@ async function renderTicketCanvas(receipt) {
                 const name = (d.name || '').trim();
                 const star = (d.star || '').trim();
                 const text = name && star ? `${name} - ${star}` : (name || star);
-                rows.push(...wrap(text, 24, false, innerMax));
+                rows.push(...wrap(text, 24, true, innerMax));
             });
             const boxH = rows.length * lh(24) + 14;
             add({ type: 'box', x: boxX, w: boxW, h: boxH, rows }, boxH);
@@ -338,7 +338,7 @@ async function renderTicketCanvas(receipt) {
     add({ type: 'hline', full: true }, 1);
 
     // Blank space under the last line so the cutter does not slice right under the content.
-    const height = y + 44;
+    const height = y + 34;
 
     // ---- Pass 2: draw. ----
     const canvas = createCanvas(WIDTH, height);
@@ -387,9 +387,11 @@ async function renderTicketCanvas(receipt) {
                 drawText({ type: 'text', text: 'AMT', size: 18, bold: true, align: 'right', y: op.y });
                 break;
             case 'box': {
+                ctx.lineWidth = 3;
                 ctx.strokeRect(op.x, op.y, op.w, op.h);
+                ctx.lineWidth = 1.5;
                 op.rows.forEach((row, i) => {
-                    drawText({ type: 'text', text: row, size: 24, x: op.x + 14, y: op.y + 7 + i * lh(24) });
+                    drawText({ type: 'text', text: row, size: 24, bold: true, x: op.x + 14, y: op.y + 7 + i * lh(24) });
                 });
                 break;
             }

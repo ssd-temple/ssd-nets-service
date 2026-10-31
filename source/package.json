@@ -1,6 +1,6 @@
 {
     "name":  "kioskservice",
-    "version":  "1.0.12",
+    "version":  "1.0.13",
     "description":  "Kiosk Payment Terminal Service",
     "main":  "index.js",
     "bin":  "index.js",
