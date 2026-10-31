@@ -313,9 +313,9 @@ async function renderTicketCanvas(receipt) {
                 const name = (d.name || '').trim();
                 const star = (d.star || '').trim();
                 const text = name && star ? `${name} - ${star}` : (name || star);
-                rows.push(...wrap(text, 24, true, innerMax));
+                rows.push(...wrap(text, 26, true, innerMax));
             });
-            const boxH = rows.length * lh(24) + 14;
+            const boxH = rows.length * lh(26) + 14;
             add({ type: 'box', x: boxX, w: boxW, h: boxH, rows }, boxH);
             y += 6;
         }
@@ -391,7 +391,7 @@ async function renderTicketCanvas(receipt) {
                 ctx.strokeRect(op.x, op.y, op.w, op.h);
                 ctx.lineWidth = 1.5;
                 op.rows.forEach((row, i) => {
-                    drawText({ type: 'text', text: row, size: 24, bold: true, x: op.x + 14, y: op.y + 7 + i * lh(24) });
+                    drawText({ type: 'text', text: row, size: 26, bold: true, x: op.x + 14, y: op.y + 7 + i * lh(26) });
                 });
                 break;
             }
