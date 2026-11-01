@@ -264,6 +264,18 @@ async function renderTicketCanvas(receipt) {
     const devoteeLists = items.map(uniqueDevotees);
     items.forEach((item, idx) => {
         y += 6;
+
+        // Order of one ticket entry: deity name, then the item / service / general item / event (with qty and amount),
+        // then its picture, then the family member names.
+        // Deities — Tamil only, centred and underlined, one per line.
+        const deityNames = Array.isArray(item.deityTamilNames) && item.deityTamilNames.length > 0
+            ? item.deityTamilNames
+            : [item.deityTamilName];
+        deityNames.filter(isUsable).forEach((name, i) => {
+            if (i === 0) y += 4;
+            add({ type: 'text', text: name, size: 26, align: 'center', underline: true }, lh(26) + 2);
+        });
+
         const title = isUsable(item.tamilName) ? item.tamilName : (item.name || '');
         const lines = wrap(title, 26, false, nameMaxWidth);
         const rowY = y;
@@ -288,15 +300,6 @@ async function renderTicketCanvas(receipt) {
             y += 4;
             add({ type: 'picture', img: ditherToCanvas(item._pictureImage, w, h), w, h }, h + 6);
         }
-
-        // Deities — Tamil only, centred and underlined, one per line.
-        const deityNames = Array.isArray(item.deityTamilNames) && item.deityTamilNames.length > 0
-            ? item.deityTamilNames
-            : [item.deityTamilName];
-        deityNames.filter(isUsable).forEach((name, i) => {
-            if (i === 0) y += 4;
-            add({ type: 'text', text: name, size: 26, align: 'center', underline: true }, lh(26) + 2);
-        });
 
         // Devotees in a bordered box — printed once for a run of consecutive
         // items that share the same devotee list (after the last of the run).
