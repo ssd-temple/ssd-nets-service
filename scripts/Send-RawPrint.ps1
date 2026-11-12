@@ -36,7 +36,7 @@ public class RawPrinterHelper
 
     public static bool SendBytesToPrinter(string szPrinterName, IntPtr pBytes, Int32 dwCount)
     {
-        Int32 dwError = 0, dwWritten = 0;
+        Int32 dwError = 0;
         IntPtr hPrinter = new IntPtr(0);
         DOCINFOA di = new DOCINFOA();
         bool bSuccess = false;
@@ -50,7 +50,21 @@ public class RawPrinterHelper
             {
                 if (StartPagePrinter(hPrinter))
                 {
-                    bSuccess = WritePrinter(hPrinter, pBytes, dwCount, out dwWritten);
+                    int offset = 0;
+                    bSuccess = dwCount == 0;
+                    while (offset < dwCount)
+                    {
+                        int chunk = Math.Min(dwCount - offset, 4096);
+                        int written;
+                        bool ok = WritePrinter(hPrinter, IntPtr.Add(pBytes, offset), chunk, out written);
+                        if (!ok || written <= 0)
+                        {
+                            bSuccess = false;
+                            break;
+                        }
+                        offset += written;
+                        bSuccess = offset == dwCount;
+                    }
                     EndPagePrinter(hPrinter);
                 }
                 EndDocPrinter(hPrinter);

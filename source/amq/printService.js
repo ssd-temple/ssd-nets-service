@@ -1,4 +1,5 @@
 const { spawn, exec } = require('child_process');
+const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 // const receiptline = require('receiptline'); // Removed due to SVG issue
@@ -34,6 +35,18 @@ if (!fs.existsSync(TEMP_DIR)) {
 
 // WebSocket handler will be set after initialization
 let wsHandler = null;
+
+// One booking at a time. Two printJSON calls (two counters, or a reprint
+// while a sale is still printing) used to spawn two RAW writes together.
+// A truncated or overlapped GS v 0 leaves the printer parsing image bytes
+// as text until it is power-cycled. The chain holds the whole booking —
+// every ticket of it, in order — before the next booking starts.
+let printQueue = Promise.resolve();
+function enqueuePrint(task) {
+    const run = printQueue.then(task, task);
+    printQueue = run.then(() => undefined, () => undefined);
+    return run;
+}
 
 // Function to set WebSocket handler
 function setWebSocketHandler(handler) {
@@ -121,8 +134,10 @@ class PrintService {
      * Print buffer data
      */
     async printBuffer(buffer, printerName) {
-        const timestamp = Date.now();
-        const tempFilePath = path.join(TEMP_DIR, `printjob_${timestamp}.bin`);
+        // Date.now() alone collides when two jobs start in the same
+        // millisecond and then share (and delete) one file, so the printer
+        // receives a truncated image command.
+        const tempFilePath = path.join(TEMP_DIR, `printjob_${Date.now()}_${crypto.randomBytes(4).toString('hex')}.bin`);
         fs.writeFileSync(tempFilePath, buffer);
         const platform = process.platform;
 
@@ -324,14 +339,6 @@ class PrintService {
             });
         }
 
-        const builder = new ESCPOSBuilder();
-
-        // Force the printer's character table to USA/ASCII on every job
-        // instead of trusting whatever it's currently configured to — this
-        // printer had drifted onto a table where byte 0x24 ("$") renders
-        // as "¥". See ESCPOSBuilder.characterSet/codePage.
-        builder.characterSet(0).codePage(0);
-
         // Resolved once (cached after the first successful decode — see
         // ESCPOSBuilder.getLogoRaster) and printed at the top of every
         // receipt below. null on any failure (missing file, canvas
@@ -362,24 +369,10 @@ class PrintService {
             }
         }
 
-        if (typeof data === 'string') {
-            // Raw text print
-            builder.text(data).newline().feed(2).cut();
-        } else if (data.content) {
-            // Raw text in content
-            builder.text(data.content).newline().feed(2).cut();
-        } else if (data.receipts && Array.isArray(data.receipts)) {
-            // Handle array of receipts
-            data.receipts.forEach(r => this.buildReceipt(builder, r, logoRaster, ticketRasters.get(r)));
-        } else if (data.receiptId && data.items) {
-            // Handle single receipt object
-            this.buildReceipt(builder, data, logoRaster, ticketRasters.get(data));
-        } else {
-            // Basic default formatter
-            this.buildDefaultReceipt(builder, data);
-        }
-
-        const buffer = builder.getBuffer();
+        // One spooler document per ticket, each starting with ESC @. A 5- or
+        // 7-ticket booking used to be one giant RAW write; the printer printed
+        // the header of page 1 and then dumped the rest as characters.
+        const buffers = this.buildJobBuffers(data, logoRaster, ticketRasters);
 
         // Generate full receipt image(s) for viewing/record-keeping —
         // deliberately NOT gated on the physical print below succeeding.
@@ -415,7 +408,17 @@ class PrintService {
         }
 
         try {
-            const result = await this.printBuffer(buffer, printerName);
+            const result = await enqueuePrint(async () => {
+                let last = { success: true, message: "Nothing to print" };
+                for (let i = 0; i < buffers.length; i++) {
+                    logger.log({
+                        level: "info",
+                        message: `Sending ticket ${i + 1}/${buffers.length} to printer ${printerName}`,
+                    });
+                    last = await this.printBuffer(buffers[i], printerName);
+                }
+                return last;
+            });
 
             // Emit print completed event
             if (wsHandler) {
@@ -439,6 +442,45 @@ class PrintService {
 
             throw error;
         }
+    }
+
+    /**
+     * One ESC/POS buffer per physical ticket. Every buffer starts with
+     * ESC @ and then forces USA/PC437 — ESC @ clears a drifted table, and
+     * the explicit select is what stops "$" printing as "¥".
+     */
+    buildJobBuffers(data, logoRaster, ticketRasters) {
+        const startJob = () => {
+            const builder = new ESCPOSBuilder();
+            builder.initialize().characterSet(0).codePage(0);
+            return builder;
+        };
+
+        if (typeof data === 'string') {
+            const builder = startJob();
+            builder.text(data).newline().feed(2).cut();
+            return [builder.getBuffer()];
+        }
+        if (data && data.content) {
+            const builder = startJob();
+            builder.text(data.content).newline().feed(2).cut();
+            return [builder.getBuffer()];
+        }
+        if (data && data.receipts && Array.isArray(data.receipts)) {
+            return data.receipts.map((r) => {
+                const builder = startJob();
+                this.buildReceipt(builder, r, logoRaster, ticketRasters.get(r));
+                return builder.getBuffer();
+            });
+        }
+        if (data && data.receiptId && data.items) {
+            const builder = startJob();
+            this.buildReceipt(builder, data, logoRaster, ticketRasters.get(data));
+            return [builder.getBuffer()];
+        }
+        const builder = startJob();
+        this.buildDefaultReceipt(builder, data);
+        return [builder.getBuffer()];
     }
 
     /**

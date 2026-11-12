@@ -222,6 +222,17 @@ class ESCPOSBuilder {
         return this.add([0x1D, 0x56, 65, 0]); // Full cut
     }
 
+    initialize() {
+        // ESC @: clear modes a previous job left behind (code page, character
+        // set, upside-down, spacing). Send it before characterSet/codePage.
+        // It cannot abort a GS v 0 that is still waiting for image bytes —
+        // those bytes swallow ESC @ too, which is why a desynced printer
+        // stays garbage until it is power-cycled. Keeping every image
+        // command smaller than the receive buffer (canvasToRaster) is what
+        // stops that wait from starting.
+        return this.add([0x1B, 0x40]);
+    }
+
     characterSet(n = 0) {
         // ESC R n: select international character set. n=0 is USA, which
         // keeps the 12 ASCII positions ($ # @ [ \ ] ^ ` { | } ~) as
@@ -448,15 +459,33 @@ class ESCPOSBuilder {
      * Rasterises a whole pre-rendered canvas (see ticketLayout.js) into ESC/POS
      * commands, in bands so a long ticket never exceeds a printer's raster
      * height limit. Synchronous and cheap to call from buildReceipt().
+     *
+     * Each GS v 0 is kept under MAX_RASTER_DATA_BYTES. A 544-dot ticket is
+     * 68 bytes per row, and the old 256-row band was ~17KB — larger than the
+     * 4KB receive buffer on the counter printers. The first band (logo and
+     * receipt number) still printed; the next band overflowed, the printer
+     * left graphics mode, and the rest of the bitmap came out as characters.
+     * It then stayed in that state until the printer was power-cycled.
+     * Height is also kept off multiples of 256 so the low height byte (yL)
+     * is never 0 — some firmware treats yL 0 as an empty image and prints
+     * the following bytes as text.
      */
-    static canvasToRaster(canvas, bandHeight = 256) {
+    static canvasToRaster(canvas, bandHeight) {
         const ctx = canvas.getContext('2d');
+        const widthBytes = Math.max(1, Math.ceil(canvas.width / 8));
+        const maxRows = Math.max(1, Math.floor(ESCPOSBuilder.MAX_RASTER_DATA_BYTES / widthBytes));
+        let rows = Math.min(bandHeight || maxRows, maxRows);
+        if (rows >= 256 && rows % 256 === 0) rows -= 1;
+
         const parts = [];
-        for (let top = 0; top < canvas.height; top += bandHeight) {
-            const h = Math.min(bandHeight, canvas.height - top);
+        for (let top = 0; top < canvas.height; top += rows) {
+            // ESC J 0 between bands: back in command mode before the next
+            // GS v 0. Back-to-back image commands are what desynced the parser.
+            if (parts.length) parts.push(Buffer.from([0x1B, 0x4A, 0]));
+            const h = Math.min(rows, canvas.height - top);
             parts.push(canvasToRasterCommand(ctx, canvas.width, h, top));
         }
-        return Buffer.concat(parts);
+        return parts.length ? Buffer.concat(parts) : Buffer.alloc(0);
     }
 
     // Simple table implementation
@@ -664,5 +693,10 @@ ESCPOSBuilder.getCanvasStatus = () => ({
     fontRegistered,
     fontRegistrationError: registrationError,
 });
+
+// One GS v 0 payload must fit in a small thermal-printer receive buffer
+// (commonly 4KB; some clones are smaller). 2048 leaves room for the header
+// and for the printer still finishing the previous band.
+ESCPOSBuilder.MAX_RASTER_DATA_BYTES = 2048;
 
 module.exports = ESCPOSBuilder;
