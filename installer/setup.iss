@@ -119,3 +119,149 @@ Type: filesandordirs; Name: "{app}"
 Type: filesandordirs; Name: "{group}"
 Type: filesandordirs; Name: "{commonappdata}\KioskService"
 Type: filesandordirs; Name: "{localappdata}\KioskService"
+
+[Code]
+// ── Why this section exists (v1.0.17) ───────────────────────────────────────
+// A client PC reported "The code execution cannot proceed because ffmpeg.dll
+// was not found" when starting NETS and Printer Service.exe. The Electron
+// exe has a hard load-time dependency on ffmpeg.dll (and the other Chromium
+// runtime files below) sitting next to it — if any one is missing, Windows
+// refuses to start the app before a single line of our code runs, so the app
+// can never repair itself. The installer is the only place that can.
+//
+// 1. PrepareToInstall: force-close every running copy of the app (the main
+//    exe AND its Chromium GPU/utility/renderer child processes, which all
+//    share the same exe name) plus the bundled kioskservice.exe BEFORE any
+//    file is touched, so no runtime DLL is held open mid-update.
+//    Deliberately no "/T" (process tree): the in-app updater's helper script
+//    is a child of the app, and /T would kill it too (no relaunch, no retry).
+//    taskkill.exe is run directly, never through cmd.exe (same as the sc.exe
+//    lines in [Run]) — see the ASR note at the top of this file.
+// 2. ssPostInstall: verify every critical runtime file actually landed in
+//    {app}. Any that is missing (antivirus quarantine, a file lock, a partial
+//    earlier install) is re-extracted from this installer and copied back in.
+//    Anything still missing afterwards is logged and, for a normal (non
+//    silent) install, explained to the user — usually antivirus.
+// Printing and NETS code is not touched by any of this.
+
+const
+  CriticalFileCount = 14;
+
+var
+  CriticalFiles: array[0..13] of String;
+
+procedure InitCriticalFiles;
+begin
+  // Paths relative to {app}. Base names are unique within the build, which
+  // ExtractTemporaryFile (matches by file name) relies on.
+  CriticalFiles[0]  := '{#MyAppExeName}';
+  CriticalFiles[1]  := 'ffmpeg.dll';
+  CriticalFiles[2]  := 'libEGL.dll';
+  CriticalFiles[3]  := 'libGLESv2.dll';
+  CriticalFiles[4]  := 'd3dcompiler_47.dll';
+  CriticalFiles[5]  := 'vk_swiftshader.dll';
+  CriticalFiles[6]  := 'vulkan-1.dll';
+  CriticalFiles[7]  := 'icudtl.dat';
+  CriticalFiles[8]  := 'resources.pak';
+  CriticalFiles[9]  := 'chrome_100_percent.pak';
+  CriticalFiles[10] := 'snapshot_blob.bin';
+  CriticalFiles[11] := 'v8_context_snapshot.bin';
+  CriticalFiles[12] := 'resources\app.asar';
+  CriticalFiles[13] := 'resources\app.asar.unpacked\source\kioskservice.exe';
+end;
+
+procedure KillProcessByName(const ExeName: String);
+var
+  ResultCode: Integer;
+begin
+  // Exit code 128 = "process not found" — the normal case, not an error.
+  if Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /IM "' + ExeName + '"', '',
+          SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+    Log(Format('taskkill /IM "%s" -> exit code %d', [ExeName, ResultCode]))
+  else
+    Log(Format('taskkill /IM "%s" could not be started', [ExeName]));
+end;
+
+procedure CloseRunningApp;
+begin
+  KillProcessByName('{#MyAppExeName}');
+  KillProcessByName('kioskservice.exe');
+  // Give Windows a moment to release the file handles / mapped DLLs.
+  Sleep(1500);
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  CloseRunningApp;
+  Result := '';
+end;
+
+function RestoreFile(const RelPath: String): Boolean;
+var
+  DestPath, FileName, TempPath: String;
+begin
+  DestPath := ExpandConstant('{app}\') + RelPath;
+  if FileExists(DestPath) then
+  begin
+    Result := True;
+    exit;
+  end;
+
+  Log('Critical file missing after install, restoring: ' + DestPath);
+  FileName := ExtractFileName(RelPath);
+  try
+    ExtractTemporaryFile(FileName);
+    TempPath := ExpandConstant('{tmp}\') + FileName;
+    ForceDirectories(ExtractFileDir(DestPath));
+    if not FileCopy(TempPath, DestPath, False) then
+      Log('  FileCopy failed for ' + DestPath);
+  except
+    Log('  Restore failed for ' + DestPath + ': ' + GetExceptionMessage);
+  end;
+
+  Result := FileExists(DestPath);
+  if Result then
+    Log('  Restored: ' + DestPath)
+  else
+    Log('  STILL MISSING: ' + DestPath);
+end;
+
+procedure VerifyAndRepairInstall;
+var
+  I: Integer;
+  Missing: String;
+begin
+  InitCriticalFiles;
+  Missing := '';
+  for I := 0 to CriticalFileCount - 1 do
+    if not RestoreFile(CriticalFiles[I]) then
+      Missing := Missing + #13#10 + '  ' + CriticalFiles[I];
+
+  if Missing = '' then
+  begin
+    Log('Install verification passed: all critical runtime files present.');
+    exit;
+  end;
+
+  Log('Install verification FAILED. Missing:' + Missing);
+  if not WizardSilent then
+    MsgBox('Some required program files could not be written to:' + #13#10 +
+           ExpandConstant('{app}') + #13#10 + Missing + #13#10#13#10 +
+           'This is almost always caused by antivirus software removing or blocking them.' + #13#10 +
+           'Please add the folder above as an exclusion in the antivirus, then run this installer again.',
+           mbError, MB_OK);
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+    VerifyAndRepairInstall;
+end;
+
+function InitializeUninstall(): Boolean;
+begin
+  // Uninstalling while the app runs used to leave locked files behind in a
+  // half-deleted folder; any leftover exe then fails with "xxx.dll not found".
+  CloseRunningApp;
+  Result := True;
+end;

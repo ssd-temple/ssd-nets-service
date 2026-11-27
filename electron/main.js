@@ -287,30 +287,57 @@ function installSilentlyAndRelaunch(installerPath) {
   // each step (and the installer's exit code) to a temp file, since a silent
   // failure here previously left the app just... not reappearing, with no
   // way to tell why.
-  const logPath = path.join(app.getPath('temp'), `NETS-updater-log-${Date.now()}.txt`);
+  const stamp = Date.now();
+  const logPath = path.join(app.getPath('temp'), `NETS-updater-log-${stamp}.txt`);
+  // Inno Setup's own detailed log (which files were replaced, the post-install
+  // runtime-file verification in installer/setup.iss, etc.) — the first thing
+  // to ask a client for if an update ever misbehaves on their PC.
+  const innoLogPath = path.join(app.getPath('temp'), `NETS-installer-log-${stamp}.txt`);
   const q = (v) => `"${v}"`;
+  const exeName = path.basename(relaunchExePath);
+  // The Electron exe cannot even start without ffmpeg.dll next to it
+  // ("ffmpeg.dll was not found" system error, v1.0.17 fix) — so "installer
+  // exit code 0" alone is not proof the install is usable. Check the files
+  // Windows needs to load the exe before relaunching it.
+  const ffmpegPath = path.join(installDir, 'ffmpeg.dll');
   const helperScript = [
     '@echo off',
     `echo [%date% %time%] Updater started. installDir=${installDir} > "${logPath}"`,
     'timeout /t 4 /nobreak >nul',
     // The background service (kioskservice.exe) can outlive the app for a
     // moment and keeps files locked, which made the silent installer abort
-    // with exit code 5 ("files in use"). Make sure it is gone first.
+    // with exit code 5 ("files in use"). Chromium's own helper processes
+    // (GPU / utility / renderer — same exe name as the app) can also linger
+    // a few seconds after app.quit() and keep ffmpeg.dll and the other
+    // runtime DLLs mapped. Make sure all of them are gone BEFORE the first
+    // attempt, not only on the retry. No "/t": this script is a child of
+    // the app, and killing the process tree would kill this script too.
     'taskkill /f /im kioskservice.exe >nul 2>&1',
+    `taskkill /f /im ${q(exeName)} >nul 2>&1`,
     'timeout /t 2 /nobreak >nul',
-    `echo [%date% %time%] Running installer: ${installerPath} >> "${logPath}"`,
-    `${q(installerPath)} /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR=${q(installDir)}`,
+    'set ATTEMPT=0',
+    ':install',
+    'set /a ATTEMPT+=1',
+    `echo [%date% %time%] Running installer (attempt %ATTEMPT%): ${installerPath} >> "${logPath}"`,
+    `${q(installerPath)} /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR=${q(installDir)} /LOG=${q(innoLogPath)}`,
     'set RC=%errorlevel%',
     `echo [%date% %time%] Installer exit code: %RC% >> "${logPath}"`,
-    'if "%RC%"=="0" goto relaunch',
-    // One automatic retry after force-closing anything still holding files.
-    `echo [%date% %time%] Installer failed - closing leftover processes and retrying once. >> "${logPath}"`,
+    'if not "%RC%"=="0" goto failed',
+    `if not exist ${q(relaunchExePath)} goto missing`,
+    `if not exist ${q(ffmpegPath)} goto missing`,
+    'goto relaunch',
+    ':missing',
+    `echo [%date% %time%] Installer reported success but required runtime files are missing (ffmpeg.dll / exe) - possibly removed by antivirus. >> "${logPath}"`,
+    ':failed',
+    'if %ATTEMPT% GEQ 3 goto giveup',
+    // Automatic retry after force-closing anything still holding files.
+    `echo [%date% %time%] Closing leftover processes and retrying. >> "${logPath}"`,
     'taskkill /f /im kioskservice.exe >nul 2>&1',
-    `taskkill /f /im ${q(path.basename(relaunchExePath))} >nul 2>&1`,
+    `taskkill /f /im ${q(exeName)} >nul 2>&1`,
     'timeout /t 5 /nobreak >nul',
-    `${q(installerPath)} /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /DIR=${q(installDir)}`,
-    'set RC=%errorlevel%',
-    `echo [%date% %time%] Installer exit code (retry): %RC% >> "${logPath}"`,
+    'goto install',
+    ':giveup',
+    `echo [%date% %time%] Giving up after %ATTEMPT% attempts. See installer log: ${innoLogPath} >> "${logPath}"`,
     ':relaunch',
     `if exist "${relaunchExePath}" (`,
     `  echo [%date% %time%] Relaunching: ${relaunchExePath} >> "${logPath}"`,
